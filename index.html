@@ -1,0 +1,3154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DJ Live — Song Recognition</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <style>
+    :root {
+      --bg-deep: #0a0a0f;
+      --bg-card: #12121a;
+      --bg-elevated: #1a1a24;
+      --accent: #00ff9d;
+      --accent-dim: #00c078;
+      --text: #e8e8ed;
+      --text-muted: #6b6b7b;
+      --border: #2a2a38;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background: var(--bg-deep);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .bg-grid {
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,255,157,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,157,0.02) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none; z-index: 0;
+    }
+
+    main {
+      position: relative; z-index: 1;
+      max-width: 560px; margin: 0 auto; padding: 2rem;
+      min-height: 100vh;
+    }
+
+    .landing-left, .landing-right { display: none; }
+    body:not(.has-song) .landing-left,
+    body:not(.has-song) .landing-right { display: block; }
+    body:not(.has-song) main {
+      display: flex;
+      flex-direction: column;
+    }
+    body:not(.has-song) .mic-card {
+      background: transparent !important;
+      border: none !important;
+    }
+    body:not(.has-song) .landing-right {
+      margin-top: 2rem;
+    }
+    body:not(.has-song) .now-playing { display: none; }
+    body:not(.has-song) .results { display: none; }
+    body.has-song .landing-left,
+    body.has-song .landing-right { display: none; }
+
+    header { text-align: center; margin-bottom: 3rem; }
+
+    h1 {
+      font-size: 2rem; font-weight: 700; letter-spacing: -0.03em;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle { margin-top: 0.5rem; font-size: 0.95rem; color: var(--text-muted); }
+
+    /* ── Mic card (idle) ── */
+    .mic-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 2rem; text-align: center;
+      margin-bottom: 1.25rem;
+      transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                  top 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                  background 0.3s ease, border-radius 0.4s ease;
+    }
+
+    .mic-btn {
+      width: 140px; height: 140px; border-radius: 50%;
+      border: none; background: var(--bg-elevated);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1.75rem; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+    }
+    .mic-btn:hover:not(:disabled) {
+      background: rgba(0,255,157,0.2) !important;
+      transform: scale(1.12) !important;
+      box-shadow: 0 0 36px rgba(0,255,157,0.5), 0 0 72px rgba(0,255,157,0.2) !important;
+    }
+    .mic-btn.listening { border: none; background: rgba(0,255,157,0.15); animation: pulse-ring 1.5s ease-out infinite; }
+    .mic-btn.identifying { border: none; background: rgba(255,184,0,0.15); animation: none; }
+
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(0,255,157,0.4); }
+      70% { box-shadow: 0 0 0 18px rgba(0,255,157,0); }
+      100% { box-shadow: 0 0 0 0 rgba(0,255,157,0); }
+    }
+
+    .mic-icon { width: 56px; height: 56px; fill: var(--text-muted); transition: fill 0.3s; }
+    .mic-btn:hover .mic-icon, .mic-btn.listening .mic-icon { fill: var(--accent); }
+    .mic-btn.identifying .mic-icon { fill: #ffb800; }
+
+    .status-text { font-size: 1rem; color: var(--text-muted); }
+    body:not(.has-song) .status-text { font-size: 1.5rem; font-weight: 500; }
+    .status-text.listening { color: var(--accent); font-weight: 500; }
+    .status-subtext { margin-top: 0.3rem; min-height: 1.1rem; font-size: 0.84rem; color: var(--text-muted); }
+
+    /* ── Now Playing (base / hidden) ── */
+    .now-playing {
+      background: var(--bg-card); border: 1px solid var(--accent-dim);
+      border-radius: 16px; padding: 1.5rem 1.75rem;
+      margin-bottom: 1.25rem;
+      display: none;
+    }
+    .now-playing.visible { display: block; }
+    .now-playing.paused { border-color: #ffb800; }
+
+    .np-header {
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 0.6rem;
+      transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                  transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .np-badge {
+      font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+      font-weight: 600; color: var(--accent);
+    }
+    .now-playing.paused .np-badge { color: #ffb800; }
+
+    .np-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.9rem; }
+
+    .np-art {
+      width: 56px; height: 56px; border-radius: 8px;
+      background: var(--bg-elevated); object-fit: cover; flex-shrink: 0;
+    }
+
+    .np-info { flex: 1; min-width: 0; }
+    .np-title { font-weight: 600; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .np-artist { color: var(--text-muted); font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .np-bar-wrap { width: 100%; }
+    .np-bar {
+      width: 100%; height: 8px; border-radius: 999px;
+      background: rgba(255,255,255,0.08); overflow: hidden;
+    }
+    .np-bar-fill {
+      width: 0%; height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-dim));
+      transition: width 0.45s cubic-bezier(0.25, 0.1, 0.25, 1);
+    }
+    .now-playing.paused .np-bar-fill { background: linear-gradient(90deg, #ffb800, #cc9200); }
+
+    .np-times {
+      display: flex; justify-content: space-between; margin-top: 0.35rem;
+      font-size: 0.75rem; color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .np-links { display: flex; gap: 0.6rem; margin-top: 0.6rem; justify-content: center; }
+    .np-links a { font-size: 0.78rem; color: var(--accent); text-decoration: none; }
+    .np-links a:hover { text-decoration: underline; }
+
+    /* ── Lyrics ── */
+    .lyrics-box {
+      margin-top: 1rem; padding: 0.75rem 0;
+      max-height: 160px; overflow: hidden;
+      position: relative;
+      display: none;
+    }
+    .lyrics-box.visible { display: block; }
+
+    .lyrics-box::before, .lyrics-box::after {
+      content: ''; position: absolute; left: 0; right: 0; height: 3.5rem; z-index: 1; pointer-events: none;
+    }
+    .lyrics-box::before { top: 0; background: linear-gradient(var(--bg-deep), transparent); }
+    .lyrics-box::after { bottom: 0; background: linear-gradient(transparent, var(--bg-deep)); }
+
+    .lyrics-inner {
+      padding: 3rem 0;
+    }
+
+    .lyrics-line {
+      font-size: 1.1rem; line-height: 1.8;
+      color: var(--text-muted);
+      transition: color 0.2s ease, font-size 0.2s ease, opacity 0.25s ease, transform 0.2s ease;
+      text-align: center;
+      padding: 0.15rem 0;
+    }
+    .lyrics-line.active {
+      color: var(--text);
+      font-weight: 600;
+      font-size: 1.35rem;
+      transform: scale(1.02);
+    }
+    .lyrics-line.past { opacity: 0.3; }
+
+    /* ── History ── */
+    .results { margin-top: 2rem; }
+    .last-song-section {
+      display: none;
+      margin-bottom: 1.5rem;
+    }
+    .last-song-section.visible { display: block; }
+    .last-song-label {
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--text-muted); margin-bottom: 0.75rem; font-weight: 600;
+    }
+    .last-song-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.5rem;
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      gap: 1rem;
+    }
+    .last-song-main {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      align-items: center; gap: 1.25rem 2rem; width: 100%;
+    }
+    .last-song-art-col {
+      display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+      min-width: 0;
+    }
+    .last-song-card .album-art {
+      width: 120px; height: 120px; border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+      flex-shrink: 0;
+    }
+    .last-song-title-col {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-width: 0;
+    }
+    .last-song-card .result-info {
+      text-align: center; min-width: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem;
+    }
+    .last-song-card .result-title { font-size: 1.2rem; margin-bottom: 0.2rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+    .last-song-card .result-artist { font-size: 0.95rem; color: var(--text-muted); }
+    .last-song-card .result-meta { margin-top: 0.25rem; font-size: 0.8rem; color: var(--text-muted); }
+    .last-song-video-col {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-width: 0; gap: 0.75rem;
+      padding-left: 0.5rem;
+    }
+    .last-song-title-col { padding-right: 0.5rem; }
+    .last-song-tidbit {
+      font-size: 0.85rem; color: var(--text-muted);
+      font-style: italic; line-height: 1.35; text-align: center;
+      padding-top: 0.5rem; border-top: 1px solid var(--border);
+    }
+    .last-song-video-thumb {
+      width: 100%; aspect-ratio: 16 / 9; border-radius: 8px;
+      overflow: hidden; position: relative;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .last-song-video-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .last-song-video-thumb .video-play-icon {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.35); color: #fff;
+    }
+    .last-song-video-thumb .video-play-icon svg { width: 32px; height: 32px; }
+    .last-song-video-thumb:hover .video-play-icon { background: rgba(0,0,0,0.2); }
+    .last-song-video-thumb.no-thumb .video-play-icon { background: var(--bg-elevated); color: var(--accent); }
+    .last-song-video-meta { text-align: center; max-width: 100%; min-width: 0; }
+    .last-song-video-title { font-size: 0.8rem; color: var(--text-muted); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+    .last-song-video-channel { font-size: 0.72rem; color: var(--text-muted); opacity: 0.9; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .last-song-links {
+      display: flex; justify-content: center; gap: 0.5rem;
+    }
+    .last-song-links a { display: flex; align-items: center; padding: 0.25rem; border-radius: 6px; }
+    .last-song-links a:hover { background: rgba(255,255,255,0.08); }
+    .last-song-links .result-link-icon { padding: 0.2rem; }
+    .last-song-links svg { width: 22px; height: 22px; }
+    .history-label {
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--text-muted); margin-bottom: 0.75rem; font-weight: 600;
+    }
+
+    #resultsList, #resultsListDrawer {
+      display: grid;
+      grid-template-columns: 48px 1fr 1fr 1fr;
+      align-items: center; gap: 0.75rem 1.75rem;
+    }
+    .result-col-empty { display: block; min-height: 1px; }
+    .result-card {
+      display: grid;
+      grid-template-columns: subgrid;
+      grid-column: 1 / -1;
+      align-items: center;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem 1.5rem;
+      transition: background 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+    }
+    .album-art {
+      width: 48px; height: 48px; border-radius: 6px;
+      background: var(--bg-elevated); object-fit: cover; flex-shrink: 0;
+    }
+    .result-info {
+      min-width: 0; padding-left: 1rem;
+      display: flex; flex-direction: column; gap: 0.25rem;
+    }
+    .result-title {
+      font-weight: 600; font-size: 0.95rem;
+      overflow: hidden; text-overflow: ellipsis;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
+    .result-artist { color: var(--text-muted); font-size: 0.85rem; }
+    .result-meta { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-muted); }
+    .result-links { display: flex; gap: 0.5rem; margin-top: 0.35rem; }
+    .result-links a { font-size: 0.75rem; color: var(--accent); text-decoration: none; }
+    .result-links a:hover { text-decoration: underline; }
+    .result-col-video { display: flex; justify-content: flex-start; min-width: 0; overflow: hidden; }
+    .result-col-icons { display: flex; justify-content: flex-end; min-width: 0; gap: 0.25rem; }
+    .result-col-icons a { display: flex; align-items: center; padding: 0.25rem; border-radius: 6px; }
+    .result-col-icons a:hover { background: rgba(255,255,255,0.08); }
+    .result-col-icons svg { width: 22px; height: 22px; }
+    .result-video-block {
+      display: flex; align-items: center; justify-content: flex-start;
+      text-decoration: none; color: inherit; min-width: 0; flex: 1; overflow: hidden;
+    }
+    .result-video-block:hover { color: inherit; }
+    .result-video-row {
+      display: flex; align-items: center; gap: 0.4rem; min-width: 0; overflow: hidden; flex: 1;
+    }
+    .result-video-thumb {
+      display: flex; align-items: center; justify-content: center;
+      width: 56px; height: 36px; border-radius: 6px;
+      overflow: hidden; position: relative;
+      flex-shrink: 0;
+    }
+    .result-video-thumb .video-thumb-img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .result-video-thumb .video-play-icon {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.4);
+      color: #fff;
+    }
+    .result-video-thumb .video-play-icon svg { width: 20px; height: 20px; }
+    .result-video-thumb:hover .video-play-icon { background: rgba(0,0,0,0.2); }
+    .result-video-thumb.no-thumb .video-play-icon { background: var(--bg-elevated); color: var(--accent); }
+    .result-video-meta {
+      display: flex; flex-direction: column; justify-content: center;
+      gap: 0.1rem; min-width: 0; flex: 1;
+    }
+    .result-video-title {
+      font-size: 0.72rem; color: var(--text-muted);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+    }
+    .result-video-channel {
+      font-size: 0.68rem; color: var(--text-muted);
+      opacity: 0.85; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    .error-msg {
+      background: rgba(255,80,80,0.15); border: 1px solid rgba(255,80,80,0.3);
+      color: #ff6b6b; padding: 1rem 1.25rem; border-radius: 8px;
+      margin-bottom: 1rem; font-size: 0.9rem;
+    }
+
+    /* ── History toggle + drawer overlay ── */
+    .history-toggle {
+      display: none;
+      position: fixed; bottom: 3.5rem; right: 1.5rem;
+      z-index: 150;
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: rgba(18,18,26,0.85);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      cursor: pointer;
+      align-items: center; justify-content: center;
+      color: var(--text-muted);
+      transition: all 0.25s ease;
+    }
+    .history-toggle:hover { border-color: var(--accent); color: var(--accent); }
+    .history-toggle svg { width: 22px; height: 22px; fill: currentColor; }
+    .history-toggle .badge {
+      position: absolute; top: -4px; right: -4px;
+      min-width: 20px; height: 20px;
+      background: var(--accent); color: var(--bg-deep);
+      border-radius: 999px; font-size: 0.68rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0 5px;
+    }
+    .history-toggle .badge:empty { display: none; }
+
+    .drawer-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 180;
+      background: rgba(0,0,0,0.5);
+      opacity: 0;
+      transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .drawer-overlay.visible { display: block; opacity: 1; }
+
+    /* ── Settings gear + modal ── */
+    .settings-btn {
+      position: fixed; top: 1.35rem; left: 1.5rem;
+      z-index: 105;
+      width: 36px; height: 36px;
+      border: 1px solid var(--border); border-radius: 50%;
+      background: rgba(18,18,26,0.7);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted); transition: all 0.25s ease;
+    }
+    .settings-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .settings-btn svg { width: 18px; height: 18px; fill: currentColor; }
+    body.has-song .settings-btn { top: 1.35rem; left: 1.5rem; }
+
+    .settings-overlay {
+      display: none; position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.6);
+      align-items: center; justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .settings-overlay.visible { display: flex; opacity: 1; }
+
+    .settings-modal {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 2rem;
+      width: min(540px, 92vw); max-height: 85vh; overflow-y: auto;
+      transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                  opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .settings-modal h2 {
+      font-size: 1.15rem; font-weight: 600; margin-bottom: 1.25rem;
+      color: var(--text);
+    }
+
+    .stg-group { margin-bottom: 1.25rem; }
+    .stg-label {
+      display: block; font-size: 0.78rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-muted); margin-bottom: 0.5rem;
+    }
+    .stg-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+    .stg-radio {
+      flex: 1; padding: 0.6rem 0.8rem; white-space: nowrap;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: var(--bg-elevated); color: var(--text-muted);
+      cursor: pointer; text-align: center; font-size: 0.88rem;
+      font-weight: 500; transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    .stg-radio:hover { border-color: var(--accent); color: var(--text); }
+    .stg-radio.active {
+      border-color: var(--accent); color: var(--accent);
+      background: rgba(0,255,157,0.08);
+    }
+    .stg-input {
+      width: 100%; padding: 0.55rem 0.75rem;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: var(--bg-elevated); color: var(--text);
+      font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;
+      margin-bottom: 0.4rem; outline: none; transition: border-color 0.2s;
+    }
+    .stg-input:focus { border-color: var(--accent); }
+    .stg-input::placeholder { color: var(--text-muted); opacity: 0.6; }
+    .stg-hint {
+      font-size: 0.72rem; color: var(--text-muted); line-height: 1.4;
+      margin-top: 0.15rem;
+    }
+    .stg-hint a { color: var(--accent); text-decoration: none; }
+    .stg-hint a:hover { text-decoration: underline; }
+    .stg-divider {
+      border: none; border-top: 1px solid var(--border);
+      margin: 1.5rem 0;
+    }
+    .stg-usage {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem; color: var(--text);
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.6rem 0.85rem;
+      display: flex; align-items: center; gap: 0.6rem;
+    }
+    .stg-usage-bar {
+      flex: 1; height: 6px; border-radius: 3px;
+      background: rgba(255,255,255,0.08); overflow: hidden;
+    }
+    .stg-usage-fill {
+      height: 100%; border-radius: 3px;
+      background: var(--accent); transition: width 0.3s ease;
+    }
+    .stg-usage-fill.warn { background: #ffb800; }
+    .stg-usage-fill.crit { background: #ff5050; }
+    .stg-usage-text { font-size: 0.75rem; white-space: nowrap; color: var(--text-muted); }
+
+    .stg-fields { display: none; }
+    .stg-fields.visible { display: block; }
+
+    .stg-actions { display: flex; gap: 0.6rem; margin-top: 1.5rem; }
+    .stg-save, .stg-cancel {
+      flex: 1; padding: 0.6rem; border-radius: 8px; font-size: 0.88rem;
+      font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: all 0.2s ease; border: 1px solid transparent;
+    }
+    .stg-save {
+      background: var(--accent); color: var(--bg-deep); border-color: var(--accent);
+    }
+    .stg-save:hover { background: var(--accent-dim); }
+    .stg-cancel {
+      background: transparent; color: var(--text-muted); border-color: var(--border);
+    }
+    .stg-cancel:hover { border-color: var(--text-muted); color: var(--text); }
+
+    .stg-status {
+      margin-top: 0.75rem; font-size: 0.78rem; text-align: center;
+      min-height: 1.2rem;
+    }
+    .stg-status.ok { color: var(--accent); }
+    .stg-status.err { color: #ff6b6b; }
+
+    /* Move brand right when settings button present */
+    .fs-brand { left: 4.5rem !important; }
+
+    /* ── Video badge (Official Music Video) ── */
+    .video-badge {
+      display: none;
+      position: fixed; top: 0.8rem; left: 50%;
+      transform: translateX(-50%);
+      z-index: 55;
+      color: #fff;
+      background: rgba(10,10,15,0.55);
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 999px;
+      padding: 0.45rem 1.2rem;
+      pointer-events: none;
+      flex-direction: row; align-items: center; gap: 0.6rem;
+      max-width: 55vw; white-space: nowrap;
+      overflow: hidden;
+      transition: max-width 0.6s ease-in-out, padding 0.6s ease-in-out,
+                  opacity 0.4s ease, transform 0.5s ease;
+    }
+    .video-badge.compact {
+      max-width: 280px; padding: 0.28rem 0.75rem;
+    }
+    .video-badge.compact .vb-title,
+    .video-badge.compact .vb-channel,
+    .video-badge.compact .vb-sep,
+    .video-badge.compact .vb-tag { font-size: 0.76rem !important; }
+    .video-badge.compact .vb-platform svg { width: 12px; height: 12px; }
+    .video-badge.visible { display: flex; }
+
+    .video-badge .vb-tag {
+      display: flex; align-items: center; gap: 0.25rem;
+      font-size: 0.92rem; font-weight: 600;
+      letter-spacing: 0.03em;
+      color: var(--text-muted); flex-shrink: 0;
+    }
+    .video-badge.official .vb-tag { color: #ff5070; }
+    .video-badge.searching .vb-tag { color: var(--accent); }
+    .video-badge .vb-icon { width: 10px; height: 10px; flex-shrink: 0; }
+
+    .video-badge .vb-search {
+      font-size: 0.72rem; color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      text-align: center; line-height: 1.5;
+    }
+    .video-badge .vb-search .pass { opacity: 0.4; }
+    .video-badge .vb-search .active { color: var(--accent); }
+    .video-badge .vb-search .fail { color: #ff6b6b; opacity: 0.6; }
+    .video-badge.searching {
+      flex-direction: column; align-items: center; gap: 0.15rem;
+      border-radius: 12px; max-width: 50vw; white-space: normal;
+    }
+
+    .video-badge .vb-marquee {
+      overflow: hidden; flex: 1; min-width: 0;
+    }
+    .video-badge .vb-marquee-inner {
+      display: inline-flex; align-items: center;
+      animation: vbScroll 20s linear infinite;
+    }
+    .video-badge .vb-seg {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      flex-shrink: 0;
+    }
+    .video-badge .vb-gap { display: inline-block; width: 0.5rem; flex-shrink: 0; }
+    .video-badge .vb-marquee-inner:hover { animation-play-state: paused; }
+    @keyframes vbScroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    .video-badge .vb-title {
+      font-size: 0.95rem; font-weight: 500; color: var(--text);
+      white-space: nowrap;
+    }
+    .video-badge .vb-sep {
+      color: var(--text-muted); opacity: 0.35; font-size: 0.95rem;
+    }
+    .video-badge .vb-channel {
+      font-size: 0.95rem; color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .video-badge .vb-platform {
+      display: inline-flex; align-items: center; gap: 0.2rem;
+      flex-shrink: 0; font-size: 0.95rem;
+    }
+    .video-badge .vb-platform svg { width: 16px; height: 16px; }
+
+    .search-debug {
+      display: none;
+      position: fixed; top: 4.5rem; right: 1.5rem; z-index: 100;
+      max-width: 90vw; max-height: 40vh; overflow-y: auto;
+      background: rgba(0,0,0,0.85); border: 1px solid var(--accent);
+      border-radius: 8px; padding: 0.75rem 1rem;
+      font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;
+      color: var(--accent); line-height: 1.6; white-space: pre-wrap;
+    }
+    .search-debug.debug-visible { display: block; }
+
+    .stg-check {
+      display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;
+    }
+    .stg-check input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+
+    @media (min-width: 700px) {
+      .video-badge { padding: 0.5rem 1.4rem; }
+    }
+    @media (min-width: 1200px) {
+      .video-badge { padding: 0.55rem 1.6rem; }
+    }
+
+    /* ── Video background ── */
+    .video-bg {
+      position: fixed; inset: 0; z-index: 40;
+      overflow: hidden; background: #000;
+      display: none;
+      opacity: 0;
+      transition: opacity 0.9s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    body.has-video .video-bg { display: block; }
+    body.has-video.video-ready .video-bg { opacity: 1; }
+
+    .video-bg iframe {
+      position: absolute !important; top: 50% !important; left: 50% !important;
+      width: 177.78vh !important; height: 100vh !important;
+      min-width: 100vw !important; min-height: 56.25vw !important;
+      transform: translate(-50%, -50%) !important;
+      pointer-events: none; border: none !important;
+      opacity: 1;
+      object-fit: cover;
+    }
+
+    /* Hide Dailymotion watermark overlay area at bottom */
+    .video-bg::before {
+      content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+      height: 80px; z-index: 2; pointer-events: none;
+      background: linear-gradient(transparent, rgba(10,10,15,0.8));
+    }
+
+    .video-bg::after {
+      content: ''; position: absolute; inset: 0;
+      background: rgba(10,10,15,0.55);
+      z-index: 1;
+    }
+
+    .video-bg canvas {
+      position: absolute; inset: 0;
+      width: 100% !important; height: 100% !important; display: block;
+    }
+
+    body.has-video.video-ready .bg-grid { display: none; }
+    body.has-video main { z-index: 45; }
+    body.has-video .fs-brand { opacity: 0.35; }
+    body.has-video .mic-card { background: rgba(10,10,15,0.55) !important; }
+
+    /* ── Video-mode: push content to edges so video is visible ── */
+    body.has-video.has-song .now-playing {
+      background: transparent !important;
+      flex-direction: row !important;
+      align-items: flex-end !important;
+      justify-content: space-between !important;
+      padding: 0 !important;
+      overflow: visible !important;
+    }
+
+    /* Left column: art + info + bar at bottom-left */
+    body.has-video.has-song .np-header {
+      position: fixed; top: 0.8rem; right: 1.5rem; left: auto; bottom: auto;
+      transform: none;
+      margin: 0; z-index: 52;
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    body.has-video.has-song .np-header.np-hidden {
+      opacity: 0; transform: translateX(1rem); pointer-events: none;
+    }
+    body.has-video.has-song .np-badge {
+      text-shadow: 0 1px 10px rgba(0,0,0,0.8);
+      background: rgba(10,10,15,0.55);
+      padding: 0.35rem 1rem; border-radius: 999px;
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      font-size: 0.75rem;
+    }
+
+    body.has-video.has-song .np-row {
+      position: fixed; bottom: 3.5rem; left: 1.5rem;
+      flex-direction: row !important; align-items: flex-end !important;
+      text-align: left !important; gap: 1rem !important;
+      margin: 0 !important;
+      max-width: 50vw;
+    }
+    body.has-video.has-song .np-art {
+      width: 80px !important; height: 80px !important;
+      border-radius: 12px !important; flex-shrink: 0;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.1) !important;
+    }
+    body.has-video.has-song .np-info { text-align: left !important; }
+    body.has-video.has-song .np-title {
+      font-size: 1.15rem !important; line-height: 1.3 !important;
+      text-shadow: 0 2px 20px rgba(0,0,0,0.9), 0 0 40px rgba(0,0,0,0.5);
+    }
+    body.has-video.has-song .np-artist {
+      font-size: 0.9rem !important;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+    }
+
+    body.has-video.has-song .np-bar-wrap {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      max-width: 100% !important; padding: 0 1.5rem 0.6rem;
+    }
+    body.has-video.has-song .np-bar {
+      height: 4px !important; border-radius: 0 0 0 0;
+      background: rgba(255,255,255,0.12) !important;
+    }
+    body.has-video.has-song .np-times {
+      text-shadow: 0 1px 8px rgba(0,0,0,0.7);
+      font-size: 0.72rem !important;
+    }
+
+    body.has-video.has-song .np-links {
+      position: fixed; bottom: 1.5rem; left: 1.5rem;
+      margin: 0; transform: translateY(calc(-80px - 1.5rem));
+      display: none;
+    }
+
+    /* Right column: lyrics pinned to right side */
+    body.has-video.has-song .lyrics-box {
+      position: fixed !important; right: 1.5rem; top: 50%;
+      transform: translateY(-50%);
+      max-height: 60vh !important; width: 320px !important;
+      max-width: 35vw !important;
+      margin: 0 !important;
+      background: rgba(10,10,15,0.3);
+      border-radius: 16px;
+      padding: 1rem 0.5rem !important;
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    }
+    body.has-video.has-song .lyrics-box::before {
+      background: linear-gradient(rgba(10,10,15,0.4), transparent) !important;
+      border-radius: 16px 16px 0 0;
+    }
+    body.has-video.has-song .lyrics-box::after {
+      background: linear-gradient(transparent, rgba(10,10,15,0.4)) !important;
+      border-radius: 0 0 16px 16px;
+    }
+    body.has-video.has-song .lyrics-line {
+      font-size: 0.95rem !important; line-height: 1.9 !important;
+      text-shadow: 0 1px 10px rgba(0,0,0,0.6);
+    }
+    body.has-video.has-song .lyrics-line.active {
+      font-size: 1.15rem !important;
+      text-shadow: 0 2px 16px rgba(0,0,0,0.8);
+    }
+
+    /* ═══════════════════════════════════════════════
+       FULL-SCREEN MODE  (body.has-song)
+       ═══════════════════════════════════════════════ */
+    body.has-song { overflow: hidden; }
+
+    body.has-song main {
+      max-width: 100%; padding: 0; margin: 0;
+    }
+
+    body.has-song header { display: none; }
+
+    /* Mic → floating pill */
+    body.has-song .mic-card {
+      position: fixed; top: 1.25rem; right: 1.25rem;
+      z-index: 100; margin: 0;
+      background: rgba(18,18,26,0.8);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border-radius: 999px;
+      padding: 0.35rem 1rem 0.35rem 0.35rem;
+      display: flex; align-items: center; gap: 0.6rem;
+      text-align: left;
+    }
+    body.has-song .mic-btn {
+      width: 42px; height: 42px; margin: 0; flex-shrink: 0;
+    }
+    body.has-song .mic-icon { width: 18px; height: 18px; }
+    body.has-song .status-text { font-size: 0.82rem; }
+    body.has-song .status-subtext { display: none; }
+
+    /* Now Playing → fullscreen */
+    body.has-song .now-playing {
+      position: fixed; inset: 0; z-index: 50;
+      border: none; border-radius: 0;
+      background: var(--bg-deep);
+      margin: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 4.5rem 1.5rem 2rem;
+      overflow-y: auto;
+    }
+    body.has-song .now-playing.visible { display: flex; }
+    body.has-song .now-playing.paused { border: none; }
+
+    body.has-song .np-header { margin-bottom: 1.5rem; }
+    body.has-song .np-badge { font-size: 0.82rem; letter-spacing: 0.14em; }
+
+    body.has-song .np-row {
+      flex-direction: column; align-items: center;
+      text-align: center; gap: 1.25rem; margin-bottom: 1.5rem;
+    }
+    body.has-song .np-art {
+      width: 160px; height: 160px; border-radius: 16px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+    }
+    body.has-song .np-info { text-align: center; }
+    body.has-song .np-title {
+      font-size: 1.5rem; white-space: normal;
+      overflow: visible; text-overflow: unset;
+      line-height: 1.3;
+    }
+    body.has-song .np-artist {
+      font-size: 1rem; margin-top: 0.25rem;
+      white-space: normal;
+    }
+
+    body.has-song .np-bar-wrap { max-width: 440px; }
+    body.has-song .np-bar { height: 10px; }
+    body.has-song .np-times { font-size: 0.82rem; margin-top: 0.4rem; }
+
+    body.has-song .np-links { margin-top: 0.8rem; gap: 1rem; }
+    body.has-song .np-links a { font-size: 0.88rem; }
+
+    body.has-song .lyrics-box {
+      max-height: 35vh; margin-top: 1.5rem;
+      max-width: 600px; width: 100%;
+      flex-shrink: 0;
+    }
+    body.has-song .lyrics-line { font-size: 1.15rem; line-height: 2; }
+    body.has-song .lyrics-line.active { font-size: 1.4rem; }
+
+    /* History → slide-in drawer */
+    body.has-song .results {
+      position: fixed; right: 0; top: 0; bottom: 0;
+      width: min(380px, 85vw);
+      z-index: 200; margin: 0;
+      background: var(--bg-card);
+      border-left: 1px solid var(--border);
+      padding: 1.5rem;
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    body.has-song .results.drawer-open { transform: translateX(0); }
+    body.has-song .results::-webkit-scrollbar { width: 4px; }
+    body.has-song .results::-webkit-scrollbar-track { background: transparent; }
+    body.has-song .results::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    body.has-song .history-toggle { display: flex; }
+
+    body.has-song #errorArea {
+      position: fixed; top: 4.5rem; left: 1rem; right: 1rem;
+      z-index: 110;
+    }
+
+    /* DJ Live watermark */
+    .fs-brand {
+      display: none;
+      position: fixed; top: 1.35rem; left: 1.5rem;
+      z-index: 100;
+      font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      opacity: 0.6;
+    }
+    body.has-song .fs-brand { display: block; }
+
+    /* ── Larger screens (700px+) ── */
+    @media (min-width: 700px) {
+      body.has-song .now-playing { padding: 5rem 2rem 4rem; }
+
+      body.has-song .np-art { width: 200px; height: 200px; border-radius: 20px; }
+      body.has-song .np-title { font-size: 2.2rem; }
+      body.has-song .np-artist { font-size: 1.2rem; }
+      body.has-song .np-badge { font-size: 0.9rem; }
+
+      body.has-song .np-bar-wrap { max-width: 520px; }
+      body.has-song .np-bar { height: 12px; }
+      body.has-song .np-times { font-size: 0.88rem; }
+      body.has-song .np-links a { font-size: 0.95rem; }
+
+      body.has-song .lyrics-box { max-height: 38vh; max-width: 700px; }
+      body.has-song .lyrics-line { font-size: 1.3rem; line-height: 2.1; }
+      body.has-song .lyrics-line.active { font-size: 1.65rem; }
+
+      body.has-song .mic-card {
+        padding: 0.45rem 1.25rem 0.45rem 0.45rem; gap: 0.75rem;
+      }
+      body.has-song .mic-btn { width: 48px; height: 48px; }
+      body.has-song .mic-icon { width: 20px; height: 20px; }
+      body.has-song .status-text { font-size: 0.9rem; }
+
+      body.has-song .fs-brand { font-size: 1.3rem; }
+
+      /* Video mode: scale up for medium screens */
+      body.has-video.has-song .np-row { bottom: 4rem; left: 2rem; }
+      body.has-video.has-song .np-art { width: 100px !important; height: 100px !important; }
+      body.has-video.has-song .np-title { font-size: 1.4rem !important; }
+      body.has-video.has-song .np-artist { font-size: 1rem !important; }
+      body.has-video.has-song .lyrics-box {
+        width: 380px !important; max-width: 30vw !important;
+        right: 2rem;
+      }
+      body.has-video.has-song .lyrics-line { font-size: 1.1rem !important; }
+      body.has-video.has-song .lyrics-line.active { font-size: 1.35rem !important; }
+    }
+
+    /* ── TV / Extra-large (1200px+) ── */
+    @media (min-width: 1200px) {
+      body.has-song .now-playing { padding: 5rem 3rem 4rem; }
+
+      body.has-song .np-art {
+        width: 240px; height: 240px;
+        box-shadow: 0 32px 100px rgba(0,0,0,0.6), 0 0 120px rgba(0,255,157,0.06);
+      }
+      body.has-song .np-title { font-size: 2.8rem; }
+      body.has-song .np-artist { font-size: 1.4rem; }
+      body.has-song .np-badge { font-size: 1rem; letter-spacing: 0.16em; }
+
+      body.has-song .np-bar-wrap { max-width: 600px; }
+      body.has-song .np-bar { height: 14px; }
+      body.has-song .np-times { font-size: 0.92rem; }
+      body.has-song .np-links a { font-size: 1rem; }
+
+      body.has-song .lyrics-box { max-height: 42vh; max-width: 800px; }
+      body.has-song .lyrics-line { font-size: 1.5rem; line-height: 2.2; }
+      body.has-song .lyrics-line.active { font-size: 1.9rem; }
+
+      body.has-song .fs-brand { font-size: 1.5rem; left: 2rem; top: 1.5rem; }
+
+      /* Video mode: scale up for TV/large screens */
+      body.has-video.has-song .np-row {
+        bottom: 4.5rem; left: 2.5rem;
+        max-width: 45vw; gap: 1.25rem !important;
+      }
+      body.has-video.has-song .np-art {
+        width: 120px !important; height: 120px !important;
+        border-radius: 14px !important;
+      }
+      body.has-video.has-song .np-title { font-size: 1.7rem !important; }
+      body.has-video.has-song .np-artist { font-size: 1.15rem !important; }
+      body.has-video.has-song .np-bar-wrap { padding: 0 2.5rem 0.8rem; }
+      body.has-video.has-song .np-bar { height: 5px !important; }
+      body.has-video.has-song .np-times { font-size: 0.78rem !important; }
+      body.has-video.has-song .lyrics-box {
+        width: 420px !important; max-width: 28vw !important;
+        right: 2.5rem; max-height: 65vh !important;
+      }
+      body.has-video.has-song .lyrics-line { font-size: 1.25rem !important; line-height: 2 !important; }
+      body.has-video.has-song .lyrics-line.active { font-size: 1.55rem !important; }
+    }
+
+    /* ── TV / Large screens: two-column landing, full height ── */
+    @media (min-width: 1280px) {
+      body:not(.has-song) main {
+        max-width: none;
+        width: 100%;
+        height: 100vh;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr;
+      }
+      body:not(.has-song) .landing-left {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        padding: 3rem 4rem;
+        min-height: 0;
+      }
+      body:not(.has-song) .landing-left header {
+        text-align: center;
+        margin-bottom: 0;
+        flex-shrink: 0;
+      }
+      body:not(.has-song) .landing-left h1 {
+        font-size: 2.8rem;
+      }
+      body:not(.has-song) .landing-left .subtitle {
+        font-size: 1.15rem;
+        margin-top: 0.5rem;
+      }
+      body:not(.has-song) #errorArea {
+        flex-shrink: 0;
+      }
+      body:not(.has-song) .landing-left .mic-card {
+        flex: 0 1 auto;
+        margin: auto 0;
+        padding: 2.5rem 3rem;
+        border-radius: 24px;
+      }
+      body:not(.has-song) .mic-btn {
+        width: 180px;
+        height: 180px;
+        margin-bottom: 2rem;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.35);
+      }
+      body:not(.has-song) .mic-btn:hover:not(:disabled) {
+        transform: scale(1.08);
+        box-shadow: 0 0 40px rgba(0,255,157,0.45), 0 0 80px rgba(0,255,157,0.2);
+      }
+      body:not(.has-song) .mic-icon {
+        width: 72px;
+        height: 72px;
+      }
+      body:not(.has-song) .status-text {
+        font-size: 1.65rem;
+      }
+      body:not(.has-song) .status-subtext {
+        font-size: 0.95rem;
+        margin-top: 0.4rem;
+      }
+      body:not(.has-song) .last-song-card {
+        padding: 2.5rem 3rem;
+        border-radius: 24px;
+      }
+      body:not(.has-song) .last-song-card .album-art {
+        width: 200px; height: 200px; border-radius: 18px;
+        box-shadow: 0 16px 56px rgba(0,0,0,0.5);
+      }
+      body:not(.has-song) .last-song-card .result-title { font-size: 1.75rem; }
+      body:not(.has-song) .last-song-card .result-artist { font-size: 1.15rem; }
+      body:not(.has-song) .last-song-tidbit { font-size: 1rem; }
+      body:not(.has-song) .landing-right {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+        padding: 2rem 2.5rem;
+        overflow-y: auto;
+      }
+      body:not(.has-song) .landing-right .last-song-section.visible + .history-label {
+        margin-top: 1rem;
+      }
+      body:not(.has-song) .landing-right .history-label {
+        flex-shrink: 0;
+        margin-bottom: 1rem;
+      }
+      body:not(.has-song) .landing-right #resultsList {
+        flex: 1;
+        min-height: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="video-bg" id="videoBg"></div>
+  <div class="video-badge" id="videoBadge"></div>
+  <div class="search-debug" id="searchDebugBox"></div>
+
+  <button class="settings-btn" id="settingsBtn" type="button" title="Settings">
+    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
+  </button>
+
+  <div class="settings-overlay" id="settingsOverlay">
+    <div class="settings-modal">
+      <h2>Background</h2>
+      <div class="stg-group">
+        <span class="stg-label">Mode</span>
+        <div class="stg-row">
+          <button class="stg-radio" data-bg="youtube" type="button">YouTube</button>
+          <button class="stg-radio" data-bg="video" type="button">Dailymotion</button>
+          <button class="stg-radio" data-bg="both" type="button">YT + DM</button>
+          <button class="stg-radio" data-bg="visualizer" type="button">Visualizer</button>
+        </div>
+        <div class="stg-hint">YT + DM searches both; first hit wins. YouTube requires <code style="color:var(--accent)">node yt-proxy.js</code></div>
+      </div>
+      <hr class="stg-divider">
+      <h2>Lyrics</h2>
+      <div class="stg-group">
+        <span class="stg-label">Sync offset (ms)</span>
+        <div class="stg-row" style="align-items:center;gap:0.75rem">
+          <button class="stg-radio" id="lyricsOffsetMinus" type="button" style="min-width:2.5rem">−500</button>
+          <input class="stg-input" id="lyricsOffsetMs" type="number" min="-3000" max="3000" step="100" placeholder="1500" style="width:6rem">
+          <button class="stg-radio" id="lyricsOffsetPlus" type="button" style="min-width:2.5rem">+500</button>
+        </div>
+        <div class="stg-hint">Add ms if lyrics appear behind the song; subtract if ahead. Default 2200.</div>
+      </div>
+      <hr class="stg-divider">
+      <h2>Debug</h2>
+      <div class="stg-group">
+        <label class="stg-check">
+          <input type="checkbox" id="searchDebugCb">
+          <span>Show search debug log</span>
+        </label>
+        <div class="stg-hint">Shows video search tier status in the top-right corner while searching.</div>
+      </div>
+      <hr class="stg-divider">
+      <h2>Recognition API</h2>
+      <div class="stg-group">
+        <span class="stg-label">Provider</span>
+        <div class="stg-row">
+          <button class="stg-radio active" data-provider="acrcloud" type="button">ACRCloud</button>
+          <button class="stg-radio" data-provider="audd" type="button">AudD</button>
+        </div>
+      </div>
+
+      <div class="stg-fields visible" id="fieldsAcrcloud">
+        <div class="stg-group">
+          <span class="stg-label">ACRCloud Host</span>
+          <input class="stg-input" id="acrHost" type="text" placeholder="identify-us-west-2.acrcloud.com">
+          <div class="stg-hint">Your project host from the ACRCloud console</div>
+        </div>
+        <div class="stg-group">
+          <span class="stg-label">Access Key</span>
+          <input class="stg-input" id="acrKey" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxx">
+        </div>
+        <div class="stg-group">
+          <span class="stg-label">Access Secret</span>
+          <input class="stg-input" id="acrSecret" type="password" placeholder="xxxxxxxxxxxxxxxxxxxxxxxx">
+          <div class="stg-hint">Free tier at <a href="https://www.acrcloud.com/" target="_blank" rel="noopener">acrcloud.com</a> — 100 req/day</div>
+        </div>
+        <div class="stg-group">
+          <span class="stg-label">Usage</span>
+          <div class="stg-usage" id="acrUsage"></div>
+        </div>
+      </div>
+
+      <div class="stg-fields" id="fieldsAudd">
+        <div class="stg-group">
+          <span class="stg-label">AudD API Token</span>
+          <input class="stg-input" id="auddToken" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxx">
+          <div class="stg-hint">Get one at <a href="https://dashboard.audd.io/" target="_blank" rel="noopener">dashboard.audd.io</a> — ~300 req/day free</div>
+        </div>
+        <div class="stg-group">
+          <span class="stg-label">Usage</span>
+          <div class="stg-usage" id="auddUsage"></div>
+        </div>
+      </div>
+
+      <div class="stg-actions">
+        <button class="stg-cancel" id="stgCancel" type="button">Cancel</button>
+        <button class="stg-save" id="stgSave" type="button">Save</button>
+      </div>
+      <div class="stg-status" id="stgStatus"></div>
+    </div>
+  </div>
+
+  <div class="fs-brand">DJ Live</div>
+  <main>
+    <div class="landing-left">
+      <header>
+        <h1>DJ Live</h1>
+        <p class="subtitle">DJ sets in your living room</p>
+      </header>
+      <div id="errorArea"></div>
+      <div class="mic-card">
+        <button class="mic-btn" id="micBtn" type="button" title="Start / Stop listening">
+          <svg class="mic-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/>
+          </svg>
+        </button>
+        <div class="mic-text-wrap">
+          <p class="status-text" id="statusText">Click to start listening</p>
+          <p class="status-subtext" id="statusSubtext"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="landing-right">
+      <div class="last-song-section" id="lastSongSection"></div>
+      <div class="history-label">Song History</div>
+      <div id="resultsList"></div>
+    </div>
+
+    <div class="now-playing" id="nowPlaying">
+      <div class="np-header">
+        <span class="np-badge" id="npBadge">Now Playing</span>
+      </div>
+      <div class="np-row">
+        <div class="np-art" id="npArt"></div>
+        <div class="np-info">
+          <div class="np-title" id="npTitle"></div>
+          <div class="np-artist" id="npArtist"></div>
+        </div>
+      </div>
+      <div class="np-bar-wrap">
+        <div class="np-bar"><div class="np-bar-fill" id="npFill"></div></div>
+        <div class="np-times">
+          <span id="npElapsed">0:00</span>
+          <span id="npRemaining">--:--</span>
+        </div>
+      </div>
+      <div class="np-links" id="npLinks"></div>
+      <div class="lyrics-box" id="lyricsBox">
+        <div class="lyrics-inner" id="lyricsInner"></div>
+      </div>
+    </div>
+
+    <div class="results" id="resultsDrawer">
+      <div class="history-label">Song History</div>
+      <div id="resultsListDrawer"></div>
+    </div>
+  </main>
+
+  <button class="history-toggle" id="historyToggle" type="button" title="Song History">
+    <svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+    <span class="badge" id="historyBadge"></span>
+  </button>
+  <div class="drawer-overlay" id="drawerOverlay"></div>
+
+  <script>
+    let ytApiReady = false;
+    window.onYouTubeIframeAPIReady = () => { ytApiReady = true; console.log('[YT] IFrame API ready'); };
+
+    const micBtn = document.getElementById('micBtn');
+    const statusText = document.getElementById('statusText');
+    const statusSubtext = document.getElementById('statusSubtext');
+    const errorArea = document.getElementById('errorArea');
+    const resultsList = document.getElementById('resultsList');
+    const nowPlaying = document.getElementById('nowPlaying');
+    const npBadge = document.getElementById('npBadge');
+    const npHeader = npBadge.parentElement;
+    let npBadgeTimer = null;
+
+    function flashNpBadge(text) {
+      npBadge.textContent = text;
+      npHeader.classList.remove('np-hidden');
+      clearTimeout(npBadgeTimer);
+      npBadgeTimer = setTimeout(() => npHeader.classList.add('np-hidden'), 5000);
+    }
+    const npArt = document.getElementById('npArt');
+    const npTitle = document.getElementById('npTitle');
+    const npArtist = document.getElementById('npArtist');
+    const npFill = document.getElementById('npFill');
+    const npElapsed = document.getElementById('npElapsed');
+    const npRemaining = document.getElementById('npRemaining');
+    const npLinks = document.getElementById('npLinks');
+    const resultsDrawer = document.getElementById('resultsDrawer');
+    const resultsListDrawer = document.getElementById('resultsListDrawer');
+    const historyToggle = document.getElementById('historyToggle');
+    const historyBadge = document.getElementById('historyBadge');
+    const drawerOverlay = document.getElementById('drawerOverlay');
+    let historyCount = 0;
+
+    const RECORD_MS = 12000;
+    const GAP_MS = 2000;
+
+    /* ── Settings / Provider management ── */
+    const DEFAULTS = {
+      provider: 'acrcloud',
+      bgMode: 'youtube',
+      acrHost: 'identify-us-west-2.acrcloud.com',
+      acrKey: '7b1bf1fbd0364b74c621f7c629885d8a',
+      acrSecret: 'd3Ozm0OqTkX6E1Iyu39sft8CWlYOEsWeHWIJRQZB',
+      auddToken: '15b8d3ac5946ec625264fec02d9cdb15',
+      lyricsOffsetMs: 2200,
+      searchDebug: false
+    };
+
+    const SETTINGS_KEY = 'djlive_settings2';
+    function loadSettings() {
+      try {
+        const s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+        const merged = s ? { ...DEFAULTS, ...s } : { ...DEFAULTS };
+        if (!['youtube', 'video', 'both', 'visualizer'].includes(merged.bgMode)) merged.bgMode = DEFAULTS.bgMode;
+        return merged;
+      } catch (_) { return { ...DEFAULTS }; }
+    }
+    function saveSettings(s) {
+      try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (_) {}
+    }
+
+    let settings = loadSettings();
+
+    /* ── API usage tracking (per-day, per-provider) ── */
+    const API_LIMITS = { acrcloud: 100, audd: 300 };
+
+    function todayKey() { return new Date().toISOString().slice(0, 10); }
+
+    function loadUsage() {
+      try {
+        const u = JSON.parse(localStorage.getItem('djlive_usage'));
+        if (u && u.date === todayKey()) return u;
+      } catch (_) {}
+      return { date: todayKey(), acrcloud: 0, audd: 0 };
+    }
+    function saveUsage(u) { localStorage.setItem('djlive_usage', JSON.stringify(u)); }
+
+    let usage = loadUsage();
+
+    function trackRequest(provider) {
+      if (usage.date !== todayKey()) { usage = { date: todayKey(), acrcloud: 0, audd: 0 }; }
+      usage[provider] = (usage[provider] || 0) + 1;
+      saveUsage(usage);
+    }
+
+    function getUsageText(provider) {
+      if (usage.date !== todayKey()) return '0 / ' + API_LIMITS[provider] + ' used today';
+      const used = usage[provider] || 0;
+      const limit = API_LIMITS[provider];
+      const left = Math.max(0, limit - used);
+      return used + ' / ' + limit + ' used today (' + left + ' remaining)';
+    }
+
+    /* Settings modal wiring */
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsOverlay = document.getElementById('settingsOverlay');
+    const fieldsAcr = document.getElementById('fieldsAcrcloud');
+    const fieldsAudd = document.getElementById('fieldsAudd');
+    const stgStatus = document.getElementById('stgStatus');
+    const providerBtns = settingsOverlay.querySelectorAll('[data-provider]');
+    const bgBtns = settingsOverlay.querySelectorAll('[data-bg]');
+    let stgProvider = settings.provider;
+    let stgBgMode = settings.bgMode;
+
+    function renderUsageBar(containerId, provider) {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      if (usage.date !== todayKey()) usage = { date: todayKey(), acrcloud: 0, audd: 0 };
+      const used = usage[provider] || 0;
+      const limit = API_LIMITS[provider];
+      const pct = Math.min(100, (used / limit) * 100);
+      const left = Math.max(0, limit - used);
+      const cls = pct >= 90 ? 'crit' : pct >= 70 ? 'warn' : '';
+      el.innerHTML =
+        '<div class="stg-usage-bar"><div class="stg-usage-fill ' + cls + '" style="width:' + pct + '%"></div></div>' +
+        '<span class="stg-usage-text">' + left + ' / ' + limit + ' left today</span>';
+    }
+
+    function openSettings() {
+      stgProvider = settings.provider;
+      stgBgMode = settings.bgMode;
+      document.getElementById('acrHost').value = settings.acrHost;
+      document.getElementById('acrKey').value = settings.acrKey;
+      document.getElementById('acrSecret').value = settings.acrSecret;
+      document.getElementById('auddToken').value = settings.auddToken;
+      const lo = settings.lyricsOffsetMs ?? DEFAULTS.lyricsOffsetMs ?? 2200;
+      document.getElementById('lyricsOffsetMs').value = lo;
+      document.getElementById('searchDebugCb').checked = !!settings.searchDebug;
+      providerBtns.forEach(b => {
+        b.classList.toggle('active', b.dataset.provider === stgProvider);
+      });
+      bgBtns.forEach(b => {
+        b.classList.toggle('active', b.dataset.bg === stgBgMode);
+      });
+      fieldsAcr.classList.toggle('visible', stgProvider === 'acrcloud');
+      fieldsAudd.classList.toggle('visible', stgProvider === 'audd');
+      renderUsageBar('acrUsage', 'acrcloud');
+      renderUsageBar('auddUsage', 'audd');
+      stgStatus.textContent = '';
+      stgStatus.className = 'stg-status';
+      settingsOverlay.classList.add('visible');
+    }
+    function closeSettings() { settingsOverlay.classList.remove('visible'); }
+
+    providerBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        stgProvider = btn.dataset.provider;
+        providerBtns.forEach(b => b.classList.toggle('active', b === btn));
+        fieldsAcr.classList.toggle('visible', stgProvider === 'acrcloud');
+        fieldsAudd.classList.toggle('visible', stgProvider === 'audd');
+      });
+    });
+
+    bgBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        stgBgMode = btn.dataset.bg;
+        bgBtns.forEach(b => b.classList.toggle('active', b === btn));
+      });
+    });
+
+    document.getElementById('lyricsOffsetMinus')?.addEventListener('click', () => {
+      const inp = document.getElementById('lyricsOffsetMs');
+      const v = parseInt(inp.value || '0', 10) - 500;
+      inp.value = Math.max(-3000, v);
+    });
+    document.getElementById('lyricsOffsetPlus')?.addEventListener('click', () => {
+      const inp = document.getElementById('lyricsOffsetMs');
+      const v = parseInt(inp.value || '0', 10) + 500;
+      inp.value = Math.min(3000, v);
+    });
+
+    settingsBtn.addEventListener('click', openSettings);
+    document.getElementById('stgCancel').addEventListener('click', closeSettings);
+    settingsOverlay.addEventListener('click', e => { if (e.target === settingsOverlay) closeSettings(); });
+
+    document.getElementById('stgSave').addEventListener('click', () => {
+      settings.provider = stgProvider;
+      const oldBg = settings.bgMode;
+      settings.bgMode = stgBgMode;
+      settings.acrHost = document.getElementById('acrHost').value.trim();
+      settings.acrKey = document.getElementById('acrKey').value.trim();
+      settings.acrSecret = document.getElementById('acrSecret').value.trim();
+      settings.auddToken = document.getElementById('auddToken').value.trim();
+      const loVal = parseInt(document.getElementById('lyricsOffsetMs').value, 10);
+      settings.lyricsOffsetMs = Number.isFinite(loVal) ? Math.max(-3000, Math.min(3000, loVal)) : (DEFAULTS.lyricsOffsetMs ?? 2200);
+      settings.searchDebug = !!document.getElementById('searchDebugCb').checked;
+
+      if (stgProvider === 'acrcloud' && (!settings.acrHost || !settings.acrKey || !settings.acrSecret)) {
+        stgStatus.textContent = 'Fill in all ACRCloud fields';
+        stgStatus.className = 'stg-status err';
+        return;
+      }
+      if (stgProvider === 'audd' && !settings.auddToken) {
+        stgStatus.textContent = 'Enter an AudD API token';
+        stgStatus.className = 'stg-status err';
+        return;
+      }
+      saveSettings(settings);
+      applySearchDebugVisibility();
+
+      if (isListening && oldBg !== settings.bgMode) {
+        destroyVisualizer();
+        document.body.classList.remove('has-video');
+        videoBg.innerHTML = '';
+        videoForKey = null;
+        currentSongVideo = null;
+        hideVideoBadge();
+        stopAmbientCycle();
+        if (settings.bgMode === 'visualizer') {
+          startVisualizer();
+        } else if (curResult) {
+          searchAndPlayVideo(curResult.title, curResult.artist, 0);
+        }
+      }
+
+      stgStatus.textContent = 'Saved — using ' + (stgProvider === 'acrcloud' ? 'ACRCloud' : 'AudD');
+      stgStatus.className = 'stg-status ok';
+      setTimeout(closeSettings, 1200);
+    });
+
+    let audioStream = null;
+    let mediaRecorder = null;
+    let isListening = false;
+    let isIdentifying = false;
+    let recordLoop = null;
+    let progressTimer = null;
+    let listeningStartedAt = 0;
+
+    let curKey = null;
+    let curLabel = '';
+    let curArtist = '';
+    let curTitle = '';
+    let curStartedAt = 0;
+    let curDurationMs = null;
+    let curResult = null;
+    let missCount = 0;
+
+    /* ── Helpers ── */
+    function phase(text, sub, listen, ident) {
+      statusText.textContent = text;
+      statusSubtext.textContent = sub || '';
+      statusText.classList.toggle('listening', !!listen);
+      micBtn.classList.toggle('listening', !!listen);
+      micBtn.classList.toggle('identifying', !!ident);
+    }
+
+    function showError(msg) {
+      errorArea.innerHTML = msg ? '<div class="error-msg">' + msg + '</div>' : '';
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function fmtPos(ms) {
+      if (!Number.isFinite(ms) || ms < 0) return '0:00';
+      const t = Math.floor(ms / 1000);
+      return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+    }
+
+    function fmtSec(ms) { return (ms / 1000).toFixed(1) + 's'; }
+
+    function parseTimecode(tc) {
+      if (!tc || typeof tc !== 'string') return null;
+      const p = tc.split(':').map(Number);
+      if (p.some(isNaN)) return null;
+      if (p.length === 2) return (p[0] * 60 + p[1]) * 1000;
+      if (p.length === 3) return (p[0] * 3600 + p[1] * 60 + p[2]) * 1000;
+      return null;
+    }
+
+    function isSameSong(a1, t1, a2, t2) {
+      const norm = s => (s || '').toLowerCase()
+        .replace(/\s*\([^)]*\)/g, '')
+        .replace(/[^\w\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return norm(a1) === norm(a2) && norm(t1) === norm(t2);
+    }
+
+    function getDuration(r) {
+      return r.apple_music?.durationInMillis || r.spotify?.duration_ms || null;
+    }
+
+    function getArtUrl(r, size) {
+      const s = size || 600;
+      return r.apple_music?.artwork?.url?.replace('{w}', s).replace('{h}', s)
+        || r.spotify?.album?.images?.[0]?.url
+        || r._coverFallback || r._itunesArt || '';
+    }
+
+    async function fetchCoverArt(result) {
+      if (getArtUrl(result)) return;
+      try {
+        const q = encodeURIComponent(result.artist + ' ' + result.title);
+        const res = await fetch('https://itunes.apple.com/search?term=' + q + '&entity=song&limit=3',
+          { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.results?.length) {
+            const art = data.results[0].artworkUrl100?.replace('100x100', '600x600');
+            if (art) {
+              result._itunesArt = art;
+              updateNpArt(result);
+              const k = result.artist + '::' + result.title;
+              for (const h of historyItems) {
+                if ((h.artist + '::' + h.title) === k && !getArtUrl(h)) {
+                  h._itunesArt = art;
+                }
+              }
+              renderHistoryLists();
+              updateLastSongDisplay();
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    async function fetchCoverArtForHistory(item) {
+      if (getArtUrl(item)) return;
+      try {
+        const q = encodeURIComponent(item.artist + ' ' + item.title);
+        const res = await fetch('https://itunes.apple.com/search?term=' + q + '&entity=song&limit=3',
+          { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.results?.length) {
+            const art = data.results[0].artworkUrl100?.replace('100x100', '600x600');
+            if (art) {
+              item._itunesArt = art;
+              renderHistoryLists();
+              updateLastSongDisplay();
+              try { localStorage.setItem(HISTORY_KEY, JSON.stringify(historyItems)); } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    function ensureHistoryCovers() {
+      historyItems.forEach(item => {
+        if (!getArtUrl(item) && item.artist && item.title) {
+          fetchCoverArtForHistory(item);
+        }
+      });
+    }
+
+    const SPOTIFY_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.24 1.02zm1.44-3.3c-.301.42-.841.561-1.262.258-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>';
+    const APPLE_MUSIC_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.994 4.828a.648.648 0 0 0-.573-.404c-5.22-.366-10.44-.732-15.659-1.098a.573.573 0 0 0-.604.404s-2.002 6.408-2.002 6.443c-.037.22.11.44.33.476.11.038.22.038.33 0 .073-.037.366-.146.476-.22 0 0 .732-.512 1.464-.512.366 0 .696.183.842.403 0 0 .074.11.074.256v6.776c-.11.403-.073.806.33 1.098.11.074.256.147.403.183.22.037.44.037.66 0 .256-.037.513-.147.732-.33.256-.22.403-.513.44-.842V8.29c0-.037.074-.11.074-.183l2.002-3.279zm-7.324 4.922v6.26c0 .256-.037.513-.147.732-.11.256-.33.44-.586.55-.037.037-.11.074-.183.11-.073.037-.183.037-.256.037-.183.037-.366.074-.549.074-.366 0-.695-.11-1.024-.33-.183-.11-.366-.293-.476-.512-.074-.146-.11-.329-.146-.512V7.76c0-.183.037-.366.11-.512.073-.183.219-.366.402-.476.256-.11.549-.183.842-.183.256 0 .549.073.768.22.22.146.366.366.476.622.11.22.147.476.147.732z"/></svg>';
+    const DEEZER_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.81 4.16v3.03h3.4v-3.03h-3.4zm0 4.24v3.03h3.4v-3.03h-3.4zm0 4.24v3.03h3.4v-3.03h-3.4zm0 4.24v3.03h3.4v-3.03h-3.4zm-4.24 0v3.03h3.03v-3.03h-3.03zm-4.24 0v3.03h3.03v-3.03h-3.03zm-4.24 0v3.03h3.03v-3.03H6.09zm-4.24 0v3.03h3.03v-3.03H1.85zM18.81 0v3.03h3.4V0h-3.4zm-4.24 4.24v3.03h3.03V4.24h-3.03zm-4.24 0v3.03h3.03V4.24H10.33zm-4.24 0v3.03h3.03V4.24H6.09zm-4.24 0v3.03h3.03V4.24H1.85zm0 4.24v3.03h3.03V8.48H1.85zm0 4.24v3.03h3.03v-3.03H1.85zm0 4.24v3.03h3.03v-3.03H1.85z"/></svg>';
+
+    function getLinks(r) {
+      let h = '';
+      if (r.song_link) h += '<a href="'+r.song_link+'" target="_blank" rel="noopener">Lis.tn</a>';
+      if (r.spotify?.external_urls?.spotify) h += '<a href="'+r.spotify.external_urls.spotify+'" target="_blank" rel="noopener">Spotify</a>';
+      if (r.apple_music?.url) h += '<a href="'+r.apple_music.url+'" target="_blank" rel="noopener">Apple Music</a>';
+      if (r._deezerUrl) h += '<a href="'+r._deezerUrl+'" target="_blank" rel="noopener">Deezer</a>';
+      return h;
+    }
+
+    function getLinksIcons(r) {
+      let h = '';
+      if (r.spotify?.external_urls?.spotify) h += '<a href="'+r.spotify.external_urls.spotify+'" target="_blank" rel="noopener" class="result-link-icon" title="Spotify" style="color:#1DB954">'+SPOTIFY_ICON+'</a>';
+      if (r.apple_music?.url) h += '<a href="'+r.apple_music.url+'" target="_blank" rel="noopener" class="result-link-icon" title="Apple Music" style="color:#FA243C">'+APPLE_MUSIC_ICON+'</a>';
+      if (r._deezerUrl) h += '<a href="'+r._deezerUrl+'" target="_blank" rel="noopener" class="result-link-icon" title="Deezer" style="color:#FEAA2D">'+DEEZER_ICON+'</a>';
+      return h;
+    }
+
+    let isPaused = false;
+    let pausedAtElapsed = 0;
+
+    /* ── Now Playing card ── */
+    function updateNpArt(result) {
+      const art = getArtUrl(result);
+      const container = document.getElementById('npArt');
+      if (!container) return;
+
+      if (art) {
+        const img = document.createElement('img');
+        img.className = 'np-art'; img.id = 'npArt';
+        img.src = art; img.alt = '';
+        img.onerror = () => {
+          const div = document.createElement('div');
+          div.className = 'np-art'; div.id = 'npArt';
+          img.replaceWith(div);
+        };
+        container.replaceWith(img);
+      } else {
+        const div = document.createElement('div');
+        div.className = 'np-art'; div.id = 'npArt';
+        container.replaceWith(div);
+      }
+    }
+
+    function showNowPlaying(result, badge) {
+      document.body.classList.add('has-song');
+      nowPlaying.classList.add('visible');
+      nowPlaying.classList.remove('paused');
+      isPaused = false;
+      flashNpBadge(badge || 'Now Playing');
+      npTitle.textContent = result.title;
+      npArtist.textContent = result.artist;
+      npLinks.innerHTML = getLinks(result);
+      updateNpArt(result);
+      npFill.style.width = '0%';
+      npElapsed.textContent = '0:00';
+      npRemaining.textContent = curDurationMs > 0 ? fmtPos(curDurationMs) : '--:--';
+    }
+
+    function showPaused() {
+      if (!isPaused) {
+        isPaused = true;
+        pausedAtElapsed = curStartedAt ? Math.max(0, performance.now() - curStartedAt) : 0;
+        stopProgress();
+        stopLyrics();
+      }
+      nowPlaying.classList.add('paused');
+      flashNpBadge('Song Paused?');
+    }
+
+    function resumeFromPause() {
+      if (isPaused) {
+        isPaused = false;
+        curStartedAt = performance.now() - pausedAtElapsed;
+        nowPlaying.classList.remove('paused');
+        startProgress();
+        startLyrics();
+      }
+    }
+
+    function hideNowPlaying() {
+      document.body.classList.remove('has-song');
+      nowPlaying.classList.remove('visible', 'paused');
+      isPaused = false;
+      clearTimeout(npBadgeTimer);
+      npHeader.classList.remove('np-hidden');
+      clearLyrics();
+      hideVideo();
+      closeDrawer();
+      renderHistoryLists();
+      updateLastSongDisplay();
+      ensureHistoryCovers();
+    }
+
+    function tickProgress() {
+      if (!curStartedAt || !curKey || isPaused) return;
+      const elapsed = Math.max(0, performance.now() - curStartedAt);
+      npElapsed.textContent = fmtPos(elapsed);
+      if (curDurationMs > 0) {
+        const clamped = Math.min(elapsed, curDurationMs);
+        npFill.style.width = (clamped / curDurationMs * 100) + '%';
+        npRemaining.textContent = '-' + fmtPos(Math.max(0, curDurationMs - clamped));
+      } else {
+        npFill.style.width = '0%';
+        npRemaining.textContent = '--:--';
+      }
+    }
+
+    function startProgress() {
+      stopProgress();
+      tickProgress();
+      progressTimer = setInterval(tickProgress, 500);
+    }
+
+    function stopProgress() {
+      if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+    }
+
+    function resetProgress() {
+      stopProgress();
+      isPaused = false;
+      npFill.style.width = '0%';
+      npElapsed.textContent = '0:00';
+      npRemaining.textContent = '--:--';
+    }
+
+    /* ── WAV conversion ── */
+    function blobToWav(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const buf = await ctx.decodeAudioData(reader.result);
+            const samples = buf.getChannelData(0);
+            const sr = buf.sampleRate;
+            const ab = new ArrayBuffer(44 + samples.length * 2);
+            const v = new DataView(ab);
+            const ws = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+            ws(0,'RIFF'); v.setUint32(4,36+samples.length*2,true); ws(8,'WAVE');
+            ws(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true);
+            v.setUint16(22,1,true); v.setUint32(24,sr,true); v.setUint32(28,sr*2,true);
+            v.setUint16(32,2,true); v.setUint16(34,16,true);
+            ws(36,'data'); v.setUint32(40,samples.length*2,true);
+            for (let i = 0; i < samples.length; i++) {
+              const s = Math.max(-1,Math.min(1,samples[i]));
+              v.setInt16(44+i*2, s<0?s*0x8000:s*0x7FFF, true);
+            }
+            ctx.close();
+            resolve(new Blob([ab], { type: 'audio/wav' }));
+          } catch(e) { reject(e); }
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsArrayBuffer(blob);
+      });
+    }
+
+    /* ── History cards (persisted to localStorage) ── */
+    const HISTORY_KEY = 'djlive_history2';
+    const HISTORY_MAX = 100;
+    let historyItems = [];
+
+    const LAST_SONG_TIDBITS = [
+      'Dropped the needle on this one',
+      'Still ringing in your ears',
+      'From your last set',
+      'A recent favorite',
+      'The one that got the crowd moving',
+      'You played it loud',
+      'From the vinyl stack',
+      'A certified banger',
+      'Recently discovered'
+    ];
+
+    const lastSongSection = document.getElementById('lastSongSection');
+
+    function updateLastSongDisplay() {
+      const item = historyItems[0];
+      if (!item?.title || !item?.artist) {
+        lastSongSection.classList.remove('visible');
+        lastSongSection.innerHTML = '';
+        return;
+      }
+      const art = item.apple_music?.artwork?.url?.replace('{w}', 600).replace('{h}', 600)
+        || item.spotify?.album?.images?.[0]?.url
+        || item._coverFallback || item._itunesArt || '';
+      const tidbit = LAST_SONG_TIDBITS[Math.floor(Math.random() * LAST_SONG_TIDBITS.length)];
+      const artHtml = art ? '<img class="album-art" src="'+art+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">' : '<div class="album-art"></div>';
+      const linksHtml = getLinksIcons(item);
+      const thumbUrl = item.video?.thumb || (item.video?.platform === 'youtube' ? 'https://img.youtube.com/vi/'+item.video.id+'/hqdefault.jpg' : item.video?.platform === 'dailymotion' ? 'https://www.dailymotion.com/thumbnail/video/'+item.video.id : null);
+      const ch = item.video?.channel || item.video?.['owner.screenname'] || '';
+      const videoMetaHtml = item.video && (item.video.title || ch) ? '<div class="last-song-video-meta">'+(item.video.title ? '<span class="last-song-video-title">'+escapeHtml(item.video.title)+'</span>' : '')+(ch ? '<span class="last-song-video-channel">'+escapeHtml(ch)+'</span>' : '')+'</div>' : '';
+      const videoHtml = item.video ? '<a href="'+item.video.url+'" target="_blank" rel="noopener" class="last-song-video-thumb" title="'+escapeHtml(item.video.title)+'">'+(thumbUrl ? '<img src="'+thumbUrl+'" alt="" onerror="this.parentElement.classList.add(\'no-thumb\')">' : '')+'<span class="video-play-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></a>'+videoMetaHtml : '';
+      lastSongSection.innerHTML =
+        '<div class="last-song-label">Last song you listened to</div>' +
+        '<div class="last-song-card">' +
+          '<div class="last-song-main">' +
+            '<div class="last-song-art-col">' +
+              artHtml +
+              (linksHtml ? '<div class="last-song-links">'+linksHtml+'</div>' : '') +
+            '</div>' +
+            '<div class="last-song-title-col result-info">' +
+              '<div class="result-title">' + escapeHtml(item.title) + '</div>' +
+              '<div class="result-artist">' + escapeHtml(item.artist) + '</div>' +
+              (item.album && item.album !== item.title ? '<div class="result-meta">' + escapeHtml(item.album) + '</div>' : '') +
+            '</div>' +
+            '<div class="last-song-video-col">' + (videoHtml || '') + '</div>' +
+          '</div>' +
+          '<div class="last-song-tidbit">' + tidbit + '</div>' +
+        '</div>';
+      lastSongSection.classList.add('visible');
+    }
+
+    let currentSongVideo = null;
+
+    function historyItemFromResult(result, meta, video) {
+      return {
+        title: result.title,
+        artist: result.artist,
+        album: result.album || '',
+        meta: meta || '',
+        video: video || null,
+        song_link: result.song_link || null,
+        spotify: result.spotify || null,
+        apple_music: result.apple_music || null,
+        _deezerUrl: result._deezerUrl || null,
+        _coverFallback: result._coverFallback || null,
+        _itunesArt: result._itunesArt || null
+      };
+    }
+
+    function renderHistoryCard(item) {
+      const card = document.createElement('div');
+      card.className = 'result-card';
+      card.dataset.title = item.title;
+      card.dataset.artist = item.artist;
+      const art = item.apple_music?.artwork?.url?.replace('{w}', 600).replace('{h}', 600)
+        || item.spotify?.album?.images?.[0]?.url
+        || item._coverFallback || item._itunesArt || '';
+      const linksHtml = getLinksIcons(item);
+      const thumbUrl = item.video?.thumb || (item.video?.platform === 'youtube' ? 'https://img.youtube.com/vi/'+item.video.id+'/hqdefault.jpg' : item.video?.platform === 'dailymotion' ? 'https://www.dailymotion.com/thumbnail/video/'+item.video.id : null);
+      const ytIcon = '<svg viewBox="0 0 24 24" fill="#FF0000"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.38.55A3.02 3.02 0 0 0 .5 6.19 31.6 31.6 0 0 0 0 12a31.6 31.6 0 0 0 .5 5.81 3.02 3.02 0 0 0 2.12 2.14c1.88.55 9.38.55 9.38.55s7.5 0 9.38-.55a3.02 3.02 0 0 0 2.12-2.14A31.6 31.6 0 0 0 24 12a31.6 31.6 0 0 0-.5-5.81zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/></svg>';
+      const dmIcon = '<svg viewBox="0 0 24 24" fill="#00AAFF"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm4.5 12l-6.75 4.5v-9L16.5 12z"/></svg>';
+      const videoIconsHtml = item.video ? (item.video.platform === 'youtube' ? '<a href="'+item.video.url+'" target="_blank" rel="noopener" class="result-link-icon" title="YouTube">'+ytIcon+'</a>' : item.video.platform === 'dailymotion' ? '<a href="'+item.video.url+'" target="_blank" rel="noopener" class="result-link-icon" title="Dailymotion">'+dmIcon+'</a>' : '') : '';
+      const ch = item.video?.channel || item.video?.['owner.screenname'] || '';
+      const thumbHtml = thumbUrl ? '<div class="result-video-thumb"><img src="'+thumbUrl+'" alt="" class="video-thumb-img" onerror="this.parentElement.classList.add(\'no-thumb\')"><span class="video-play-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></div>' : '<div class="result-video-thumb no-thumb"><span class="video-play-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></div>';
+      const videoPart = item.video ? '<a href="'+item.video.url+'" target="_blank" rel="noopener" class="result-video-block" title="'+escapeHtml(item.video.title)+'"><div class="result-video-row">'+thumbHtml+'<div class="result-video-meta">'+(item.video.title ? '<span class="result-video-title">'+escapeHtml(item.video.title)+'</span>' : '')+(ch ? '<span class="result-video-channel">'+escapeHtml(ch)+'</span>' : '')+'</div></div></a>' : '';
+      const iconsPart = videoIconsHtml + (linksHtml || '');
+      card.innerHTML =
+        (art ? '<img class="album-art" src="'+art+'" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'album-art\'}))">' : '<div class="album-art"></div>') +
+        '<div class="result-info">' +
+          '<div class="result-title">' + escapeHtml(item.title) + '</div>' +
+          '<div class="result-artist">' + escapeHtml(item.artist) + '</div>' +
+          (item.album && item.album !== item.title ? '<div class="result-meta">' + escapeHtml(item.album) + '</div>' : '') +
+        '</div>' +
+        '<div class="result-col-video">' + (videoPart || '') + '</div>' +
+        '<div class="result-col-icons">' + iconsPart + '</div>';
+      return card;
+    }
+
+    function renderHistoryLists() {
+      resultsList.innerHTML = '';
+      if (resultsListDrawer) resultsListDrawer.innerHTML = '';
+      historyItems.forEach(item => {
+        const card = renderHistoryCard(item);
+        resultsList.appendChild(card);
+        if (resultsListDrawer) resultsListDrawer.appendChild(card.cloneNode(true));
+      });
+      alignVideoThumbnails();
+    }
+
+    function alignVideoThumbnails() {
+      requestAnimationFrame(() => {
+        [resultsList, resultsListDrawer].filter(Boolean).forEach(list => {
+          const rows = list.querySelectorAll('.result-video-row');
+          if (!rows.length) return;
+          let maxW = 0;
+          rows.forEach(el => { maxW = Math.max(maxW, el.scrollWidth); });
+          rows.forEach(el => { el.style.minWidth = maxW + 'px'; });
+        });
+      });
+    }
+
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem(HISTORY_KEY);
+        historyItems = raw ? JSON.parse(raw) : [];
+        renderHistoryLists();
+        historyCount = historyItems.length;
+        historyBadge.textContent = historyCount || '';
+        updateLastSongDisplay();
+        ensureHistoryCovers();
+      } catch (_) { historyItems = []; }
+    }
+
+    function addHistory(result, meta, video) {
+      if (!result?.artist || !result?.title) return;
+      const normT = result.title.trim().toLowerCase();
+      const normA = result.artist.trim().toLowerCase();
+      if (historyItems.some(h => h.title?.trim().toLowerCase() === normT && h.artist?.trim().toLowerCase() === normA)) return;
+
+      const videoToUse = video || (currentSongVideo && currentSongVideo.key === result.artist + '::' + result.title ? currentSongVideo : null);
+      const item = historyItemFromResult(result, meta, videoToUse?.data || null);
+      historyItems = [item, ...historyItems].slice(0, HISTORY_MAX);
+
+      renderHistoryLists();
+      historyCount = historyItems.length;
+      historyBadge.textContent = historyCount;
+      updateLastSongDisplay();
+
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(historyItems)); } catch (_) {}
+    }
+
+    function updateHistoryWithVideo(key, videoData) {
+      if (!key || !videoData) return;
+      const item = historyItems.find(h => (h.artist + '::' + h.title) === key);
+      if (item) {
+        item.video = videoData;
+        renderHistoryLists();
+        updateLastSongDisplay();
+        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(historyItems)); } catch (_) {}
+      }
+    }
+
+    /* ── Lyrics (LRCLIB) ── */
+    const lyricsBox = document.getElementById('lyricsBox');
+    const lyricsInner = document.getElementById('lyricsInner');
+    let syncedLines = [];
+    let lyricsForKey = null;
+
+    function parseLRC(lrc) {
+      if (!lrc) return [];
+      const lines = [];
+      for (const raw of lrc.split('\n')) {
+        const m = raw.match(/^\[(\d{2}):(\d{2})\.(\d{2,3})\]\s?(.*)/);
+        if (m) {
+          const ms = (+m[1] * 60 + +m[2]) * 1000 + (+m[3] < 100 ? +m[3] * 10 : +m[3]);
+          lines.push({ time: ms, text: m[4].trim() || '♪' });
+        }
+      }
+      return lines.sort((a, b) => a.time - b.time);
+    }
+
+    function renderLyricsLines() {
+      lyricsInner.innerHTML = '';
+      for (let i = 0; i < syncedLines.length; i++) {
+        const el = document.createElement('div');
+        el.className = 'lyrics-line';
+        el.textContent = syncedLines[i].text;
+        el.dataset.idx = i;
+        lyricsInner.appendChild(el);
+      }
+    }
+
+    let lyricsAnimId = null;
+    let lyricsScrollTarget = 0;
+    let lyricsScrollCurrent = 0;
+    let lyricsLastActiveIdx = -2;
+
+    function tickLyrics() {
+      if (!curStartedAt || !syncedLines.length) return;
+      const offset = settings.lyricsOffsetMs ?? 2200;
+      const elapsed = (isPaused ? pausedAtElapsed : Math.max(0, performance.now() - curStartedAt)) + offset;
+      let activeIdx = -1;
+      for (let i = syncedLines.length - 1; i >= 0; i--) {
+        if (elapsed >= syncedLines[i].time) { activeIdx = i; break; }
+      }
+      const els = lyricsInner.children;
+      for (let i = 0; i < els.length; i++) {
+        els[i].classList.toggle('active', i === activeIdx);
+        els[i].classList.toggle('past', i < activeIdx);
+      }
+      if (activeIdx !== lyricsLastActiveIdx && activeIdx >= 0 && els[activeIdx]) {
+        lyricsLastActiveIdx = activeIdx;
+        const container = lyricsBox;
+        const lineEl = els[activeIdx];
+        lyricsScrollTarget = Math.max(0, lineEl.offsetTop - container.offsetHeight / 2 + lineEl.offsetHeight / 2);
+      }
+    }
+
+    function lyricsLoop() {
+      tickLyrics();
+      lyricsScrollCurrent += (lyricsScrollTarget - lyricsScrollCurrent) * 0.35;
+      if (Math.abs(lyricsScrollTarget - lyricsScrollCurrent) < 1) lyricsScrollCurrent = lyricsScrollTarget;
+      lyricsInner.style.transform = 'translateY(' + (-lyricsScrollCurrent) + 'px)';
+      lyricsAnimId = requestAnimationFrame(lyricsLoop);
+    }
+
+    function startLyrics() {
+      stopLyrics();
+      if (syncedLines.length) {
+        lyricsScrollCurrent = lyricsScrollTarget = 0;
+        lyricsLastActiveIdx = -2;
+        tickLyrics();
+        lyricsAnimId = requestAnimationFrame(lyricsLoop);
+      }
+    }
+
+    function stopLyrics() {
+      if (lyricsAnimId) { cancelAnimationFrame(lyricsAnimId); lyricsAnimId = null; }
+    }
+
+    function clearLyrics() {
+      stopLyrics();
+      syncedLines = [];
+      lyricsForKey = null;
+      lyricsInner.innerHTML = '';
+      lyricsInner.style.transform = '';
+      lyricsBox.style.overflow = '';
+      lyricsBox.classList.remove('visible');
+    }
+
+    async function fetchLyrics(title, artist, album, durationMs) {
+      const key = artist + '::' + title;
+      if (lyricsForKey === key) return;
+      stopLyrics();
+      syncedLines = [];
+      lyricsInner.innerHTML = '';
+      lyricsInner.style.transform = '';
+      lyricsBox.style.overflow = '';
+      lyricsBox.classList.remove('visible');
+      lyricsForKey = key;
+
+      const params = new URLSearchParams({ track_name: title, artist_name: artist });
+      if (album && album !== title) params.set('album_name', album);
+      if (durationMs > 0) params.set('duration', Math.round(durationMs / 1000));
+
+      function showSynced(lines) {
+        syncedLines = lines;
+        renderLyricsLines();
+        lyricsBox.classList.add('visible');
+        startLyrics();
+      }
+      function showPlain(text) {
+        lyricsInner.innerHTML = '';
+        for (const line of text.split('\n')) {
+          const el = document.createElement('div');
+          el.className = 'lyrics-line';
+          el.textContent = line || '♪';
+          lyricsInner.appendChild(el);
+        }
+        lyricsBox.classList.add('visible');
+        lyricsBox.style.overflow = 'auto';
+      }
+
+      try {
+        const searchRes = await fetch('https://lrclib.net/api/search?' + new URLSearchParams({
+          track_name: title, artist_name: artist
+        }));
+        if (lyricsForKey !== key) return;
+
+        if (searchRes.ok) {
+          const results = await searchRes.json();
+          const match = results.find(r => r.syncedLyrics) || results.find(r => r.plainLyrics);
+          if (match?.syncedLyrics) {
+            const parsed = parseLRC(match.syncedLyrics);
+            if (parsed.length) { showSynced(parsed); return; }
+          }
+          if (match?.plainLyrics) { showPlain(match.plainLyrics); return; }
+        }
+
+        if (durationMs > 0 && album) {
+          params.set('album_name', album);
+          params.set('duration', Math.round(durationMs / 1000));
+          const exactRes = await fetch('https://lrclib.net/api/get?' + params);
+          if (lyricsForKey !== key) return;
+          if (exactRes.ok) {
+            const data = await exactRes.json();
+            if (data.syncedLyrics) {
+              const parsed = parseLRC(data.syncedLyrics);
+              if (parsed.length) { showSynced(parsed); return; }
+            }
+            if (data.plainLyrics) { showPlain(data.plainLyrics); }
+          }
+        }
+      } catch (_) {
+        /* lyrics are non-critical; silently skip */
+      }
+    }
+
+    /* ── Video background ── */
+    const videoBg = document.getElementById('videoBg');
+    const videoBadge = document.getElementById('videoBadge');
+    let videoForKey = null;
+    let videoBadgeCompactTimer = null;
+
+    const YT_ICON = '<svg viewBox="0 0 24 24" fill="#FF0000"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.38.55A3.02 3.02 0 0 0 .5 6.19 31.6 31.6 0 0 0 0 12a31.6 31.6 0 0 0 .5 5.81 3.02 3.02 0 0 0 2.12 2.14c1.88.55 9.38.55 9.38.55s7.5 0 9.38-.55a3.02 3.02 0 0 0 2.12-2.14A31.6 31.6 0 0 0 24 12a31.6 31.6 0 0 0-.5-5.81zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/></svg>';
+    const DM_ICON = '<svg viewBox="0 0 24 24" fill="#00AAFF"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm4.5 12l-6.75 4.5v-9L16.5 12z"/></svg>';
+
+    const TIER_LABELS = ['Official Music Video', 'Live / Concert', 'Artist + Song'];
+
+    const searchDebugBox = document.getElementById('searchDebugBox');
+    function applySearchDebugVisibility() {
+      if (searchDebugBox) {
+        searchDebugBox.classList.toggle('debug-visible', !!settings.searchDebug);
+      }
+    }
+    applySearchDebugVisibility();
+    function showSearchStatus(tierLabel, platform, status, detail) {
+      const plat = platform === 'yt' ? 'YouTube' : platform === 'dm' ? 'Dailymotion' : platform;
+      const line = plat ? (tierLabel + ' → ' + plat + ': ' + status) : (tierLabel + ': ' + status);
+      const fullLine = detail ? line + '\n  ' + detail : line;
+      const detailHtml = detail ? '<div class="vb-search">' + escapeHtml(detail) + '</div>' : '';
+      videoBadge.innerHTML = '<div class="vb-tag">' + escapeHtml(line) + '</div>' + detailHtml;
+      videoBadge.className = 'video-badge visible searching';
+      if (searchDebugBox) {
+        const span = document.createElement('div');
+        span.textContent = fullLine;
+        searchDebugBox.appendChild(span);
+        searchDebugBox.scrollTop = searchDebugBox.scrollHeight;
+      }
+    }
+
+    function showVideoBadge(videoTitle, channel, platform) {
+      if (!videoTitle) { hideVideoBadge(); return; }
+      const t = (videoTitle || '').toLowerCase();
+      const isOfficial = /official\s*(music\s*)?video|official\s*mv/.test(t)
+        || (/\bmusic\s*video\b/.test(t) && /official/.test(t));
+      const isLive = /\blive\b|\bconcert\b|\bperformanc|\bfestival\b/.test(t);
+
+      const tagLabel = isOfficial ? 'Official Music Video'
+        : isLive ? 'Live Performance' : 'Music Video';
+
+      const checkIcon = '<svg class="vb-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>';
+
+      const platIcon = platform === 'youtube' ? YT_ICON : platform === 'dailymotion' ? DM_ICON : '';
+      const platHtml = platIcon ? '<span class="vb-platform">' + platIcon + '</span>' : '';
+
+      const titleE = escapeHtml(videoTitle);
+      const chE = channel ? escapeHtml(channel) : '';
+      const seg = '<span class="vb-title">' + titleE + '</span>' +
+        (chE ? '<span class="vb-sep">•</span><span class="vb-channel">' + chE + '</span>' : '') +
+        '<span class="vb-sep">•</span><span class="vb-tag">' + (isOfficial ? checkIcon : '') + tagLabel + '</span>';
+      const unit = '<span class="vb-seg">' + seg + '<span class="vb-gap"></span></span>';
+      videoBadge.innerHTML =
+        platHtml +
+        '<div class="vb-marquee"><div class="vb-marquee-inner">' + unit + unit + '</div></div>';
+      videoBadge.classList.remove('compact');
+      videoBadge.className = 'video-badge visible' + (isOfficial ? ' official' : '');
+      clearTimeout(videoBadgeCompactTimer);
+      videoBadgeCompactTimer = setTimeout(() => videoBadge.classList.add('compact'), 5000);
+    }
+
+    function hideVideoBadge() {
+      clearTimeout(videoBadgeCompactTimer);
+      videoBadgeCompactTimer = null;
+      videoBadge.className = 'video-badge';
+      videoBadge.innerHTML = '';
+    }
+
+    
+
+    function showVideoIframe(src, platform) {
+      document.body.classList.remove('video-ready');
+      const iframe = document.createElement('iframe');
+      iframe.src = src;
+      iframe.allow = 'autoplay; encrypted-media';
+      iframe.allowFullscreen = true;
+      iframe.addEventListener('load', () => {
+        console.log('[Video] Loaded (' + (platform || 'video') + ')');
+        /* Delay until video has likely started playing, then fade in */
+        setTimeout(() => document.body.classList.add('video-ready'), 1200);
+      });
+      videoBg.innerHTML = '';
+      videoBg.appendChild(iframe);
+      document.body.classList.add('has-video');
+    }
+
+    let _ytPlayer = null;
+    let _onYtError = null;
+
+    function embedYouTube(videoId, startSec, videoTitle, channel, onUnavailable, onPlaying) {
+      _onYtError = onUnavailable || null;
+      document.body.classList.remove('video-ready');
+      const div = document.createElement('div');
+      div.id = 'yt-player-' + Date.now();
+      videoBg.innerHTML = '';
+      videoBg.appendChild(div);
+      document.body.classList.add('has-video');
+
+      if (_ytPlayer) { try { _ytPlayer.destroy(); } catch(_) {} _ytPlayer = null; }
+
+      _ytPlayer = new YT.Player(div.id, {
+        videoId: videoId,
+        playerVars: {
+          autoplay: 1, mute: 1, controls: 0, loop: 1, playlist: videoId,
+          modestbranding: 1, iv_load_policy: 3, disablekb: 1, playsinline: 1,
+          rel: 0, vq: 'hd1080', start: Math.max(0, Math.floor(startSec || 0))
+        },
+        events: {
+          onReady: function(e) {
+            console.log('[Video] YouTube player ready: ' + videoId);
+            /* Fallback: if play state never fires, show after 5s */
+            setTimeout(() => {
+              if (!document.body.classList.contains('video-ready')) document.body.classList.add('video-ready');
+            }, 5000);
+          },
+          onStateChange: function(e) {
+            if (e.data === 1) {
+              document.body.classList.add('video-ready');
+              if (onPlaying) onPlaying();
+            }
+          },
+          onError: function(e) {
+            console.warn('[Video] YouTube error code ' + e.data + ' for ' + videoId);
+            if (_onYtError) { const cb = _onYtError; _onYtError = null; cb(); }
+          }
+        }
+      });
+      showVideoBadge(videoTitle, channel, 'youtube');
+    }
+
+    function embedDailymotion(videoId, videoTitle, channel) {
+      const src = 'https://www.dailymotion.com/embed/video/' + videoId +
+        '?autoplay=1&mute=1&controls=false&queue-enable=false&loop=true' +
+        '&sharing-enable=false&ui-logo=false&ui-start-screen-info=false';
+      showVideoIframe(src, 'Dailymotion');
+      showVideoBadge(videoTitle, channel, 'dailymotion');
+    }
+
+    let _searchArtist = '';
+    let _searchTitle = '';
+
+    function normalize(s) { return (s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+    function isOfficialChannel(v) {
+      const ch = (v['owner.screenname'] || '').toLowerCase();
+      if (!ch || !_searchArtist) return false;
+      const a = normalize(_searchArtist);
+      const c = normalize(ch);
+      return c.includes(a) || a.includes(c) || ch.includes('vevo');
+    }
+
+    function titleContains(v, text) {
+      const t = (v.title || '').toLowerCase();
+      const parts = text.toLowerCase().split(/[\s,&]+/).filter(p => p.length > 2);
+      return parts.length > 0 && parts.every(p => t.includes(p));
+    }
+
+    function isArtistLive(v) {
+      const t = (v.title || '').toLowerCase();
+      const a = _searchArtist.toLowerCase();
+      const idx = t.indexOf(a);
+      if (idx < 0) return false;
+      const after = t.slice(idx + a.length);
+      return /^[\s\-—|:,]*\b(live|concert|performanc|festival|unplugged|tour)\b/.test(after);
+    }
+
+    function rankVideo(v) {
+      const t = (v.title || '').toLowerCase();
+      const official = isOfficialChannel(v);
+      const hasArtist = titleContains(v, _searchArtist);
+      const hasSong = titleContains(v, _searchTitle);
+      const hasArtistOrSong = hasArtist || hasSong;
+      const liveAfterArtist = isArtistLive(v);
+      const hasLive = /\blive\b|\bconcert\b|\bperformanc|\bfestival\b|\bunplugged\b/.test(t);
+      if (/lyric\s*video|\blyrics\b|official\s*lyric/.test(t)) return 99;
+      if ((/official\s*(music\s*)?video|official\s*mv/.test(t)) && official && hasSong) return 0;
+      if (!hasArtistOrSong) return 98;
+      if (liveAfterArtist || (official && hasArtist && /\blive\b|\bconcert\b/.test(t)) || (hasArtist && hasLive && /@/.test(t))) return 1;
+      if (hasArtist && hasLive) return 2;
+      if (hasArtist && hasSong) return 3;
+      if (hasArtist) return 4;
+      return 98;
+    }
+
+    function rankLabel(v) {
+      const r = rankVideo(v);
+      const ch = v['owner.screenname'] || '?';
+      if (r === 0) return 'Official MV (' + ch + ')';
+      if (r === 1) return 'Concert/live — strict (' + ch + ')';
+      if (r === 2) return 'Live + artist in title (' + ch + ')';
+      if (r === 3) return 'Artist + song match (' + ch + ')';
+      if (r === 4) return 'Artist match (' + ch + ')';
+      if (r === 99) return 'Lyric video — skip';
+      return 'No match — skip (' + ch + ')';
+    }
+
+    function dedupeById(items) {
+      if (!items?.length) return items || [];
+      const seen = new Set();
+      return items.filter(v => { const id = v?.id; if (!id || seen.has(id)) return false; seen.add(id); return true; });
+    }
+
+    function bestFromList(items, maxRank) {
+      return bestFromListWithTier(items, maxRank, null);
+    }
+
+    function bestFromListWithTier(items, maxRank, tierLabel) {
+      if (!items?.length) return null;
+      const valid = items.filter(v => rankVideo(v) <= maxRank);
+      if (!valid.length) return null;
+      const prefersOfficial = tierLabel === 'Official Music Video';
+      const isLiveTier = tierLabel === 'Live / Concert';
+      const hasOfficialInTitle = v => /official\s*(music\s*)?video|official\s*mv/.test((v.title || '').toLowerCase());
+      const hasLiveInTitle = v => /\blive\b|\bconcert\b|\bperformanc|\bfestival\b/.test((v.title || '').toLowerCase());
+      const hasFullSet = v => /\b(full\s*set|full\s*concert|complete\s*set|full\s*show|full\s*live)\b/.test((v.title || '').toLowerCase());
+      const hasSong = v => titleContains(v, _searchTitle);
+      return valid.sort((a, b) => {
+        const ra = rankVideo(a), rb = rankVideo(b);
+        if (prefersOfficial) {
+          const aOfficial = hasOfficialInTitle(a), bOfficial = hasOfficialInTitle(b);
+          const aLive = hasLiveInTitle(a), bLive = hasLiveInTitle(b);
+          if (aOfficial && !bOfficial) return -1;
+          if (!aOfficial && bOfficial) return 1;
+          if (!aLive && bLive) return -1;
+          if (aLive && !bLive) return 1;
+        }
+        if (isLiveTier && !hasSong(a) && !hasSong(b)) {
+          const aFull = hasFullSet(a), bFull = hasFullSet(b);
+          if (aFull && !bFull) return -1;
+          if (!aFull && bFull) return 1;
+        }
+        return ra - rb;
+      })[0];
+    }
+
+    function rankedList(items, maxRank, tierLabel) {
+      if (!items?.length) return [];
+      const valid = items.filter(v => rankVideo(v) <= maxRank);
+      if (!tierLabel) return valid.sort((a, b) => rankVideo(a) - rankVideo(b));
+      const isLiveTier = tierLabel === 'Live / Concert';
+      const prefersOfficial = tierLabel === 'Official Music Video';
+      const hasOfficialInTitle = v => /official\s*(music\s*)?video|official\s*mv/.test((v.title || '').toLowerCase());
+      const hasLiveInTitle = v => /\blive\b|\bconcert\b|\bperformanc|\bfestival\b/.test((v.title || '').toLowerCase());
+      const hasFullSet = v => /\b(full\s*set|full\s*concert|complete\s*set|full\s*show|full\s*live)\b/.test((v.title || '').toLowerCase());
+      const hasSong = v => titleContains(v, _searchTitle);
+      return valid.sort((a, b) => {
+        const ra = rankVideo(a), rb = rankVideo(b);
+        if (prefersOfficial) {
+          const aOfficial = hasOfficialInTitle(a), bOfficial = hasOfficialInTitle(b);
+          const aLive = hasLiveInTitle(a), bLive = hasLiveInTitle(b);
+          if (aOfficial && !bOfficial) return -1;
+          if (!aOfficial && bOfficial) return 1;
+          if (!aLive && bLive) return -1;
+          if (aLive && !bLive) return 1;
+        }
+        if (isLiveTier && !hasSong(a) && !hasSong(b)) {
+          const aFull = hasFullSet(a), bFull = hasFullSet(b);
+          if (aFull && !bFull) return -1;
+          if (!aFull && bFull) return 1;
+        }
+        return ra - rb;
+      });
+    }
+
+    function tryEmbedYt(candidates, idx, startSec, key, onAllFailed) {
+      if (videoForKey !== key) return;
+      if (idx >= candidates.length) {
+        console.log('[Video] All YouTube candidates unavailable, falling back');
+        if (onAllFailed) onAllFailed();
+        return;
+      }
+      const v = candidates[idx];
+      const videoData = { platform: 'youtube', id: v.id, title: v.title, channel: v['owner.screenname'] || '', url: 'https://www.youtube.com/watch?v=' + v.id, thumb: 'https://img.youtube.com/vi/' + v.id + '/hqdefault.jpg' };
+      currentSongVideo = { key, data: videoData };
+      console.log('[Video] YouTube trying ' + (idx + 1) + '/' + candidates.length + ': ' + v.title);
+      embedYouTube(v.id, startSec, v.title, v['owner.screenname'], () => {
+        console.log('[Video] Unavailable, trying next...');
+        tryEmbedYt(candidates, idx + 1, startSec, key, onAllFailed);
+      }, () => { if (videoForKey === key) updateHistoryWithVideo(key, videoData); });
+    }
+
+    /* ── YouTube search via local proxy (run: node yt-proxy.js or python3 yt-proxy.py) ── */
+    const YT_PROXY = 'http://localhost:3001';
+    let ytProxyOk = null;
+
+    async function ytSearch(query, key) {
+      try {
+        const res = await fetch(
+          YT_PROXY + '/?q=' + encodeURIComponent(query),
+          { signal: AbortSignal.timeout(6000) }
+        );
+        if (videoForKey !== key) return null;
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (!Array.isArray(data) || !data.length) return null;
+        if (!ytProxyOk) { ytProxyOk = true; console.log('[YT] Proxy connected'); }
+        return data.map(v => ({
+          id: v.id,
+          title: v.title || '',
+          'owner.screenname': v.channel || '',
+          duration: 0
+        }));
+      } catch (e) {
+        if (ytProxyOk !== false) {
+          ytProxyOk = false;
+          console.warn('[YT] Proxy not running — start it with: node yt-proxy.js  (or python3 yt-proxy.py)');
+          showError('YouTube proxy not running. Open a terminal and run: node yt-proxy.js');
+        }
+        return null;
+      }
+    }
+
+    async function dmSearch(query, key) {
+      const res = await fetch(
+        'https://api.dailymotion.com/videos?search=' + encodeURIComponent(query) +
+        '&limit=15&fields=id,title,duration,owner.screenname',
+        { signal: AbortSignal.timeout(6000) }
+      );
+      if (videoForKey !== key || !res.ok) return null;
+      const data = await res.json();
+      return data.list?.length ? data.list : null;
+    }
+
+    async function searchAndPlayVideo(title, artist, startSec) {
+      if (settings.bgMode === 'visualizer') return;
+
+      const useYT = settings.bgMode === 'youtube';
+      const useBoth = settings.bgMode === 'both';
+      const platform = useBoth ? 'YT+DM' : (useYT ? 'YouTube' : 'Dailymotion');
+      const searchFn = useYT ? ytSearch : dmSearch;
+
+      const key = artist + '::' + title;
+      if (videoForKey === key) return;
+      videoForKey = key;
+      currentSongVideo = null;
+      _searchArtist = artist;
+      _searchTitle = title;
+      videoBg.innerHTML = '';
+      document.body.classList.add('has-video');
+      hideVideoBadge();
+      stopAmbientCycle();
+      if (searchDebugBox) searchDebugBox.innerHTML = '';
+
+      const searches = [
+        { q: artist + ' ' + title + ' official music video', maxRank: 0, tier: 0 }, /* 1st: official music video */
+        { queries: [artist + ' ' + title + ' live', artist + ' live'], maxRank: 2, tier: 1 }, /* 2nd: live (song+artist + artist-only, incl @) */
+        { q: artist + ' ' + title,                           maxRank: 3, tier: 2 }, /* 3rd: generic match */
+      ];
+
+      async function tryTierBoth(tierIdx) {
+        if (tierIdx >= searches.length) {
+          showSearchStatus('All tiers', '', 'falling back to ambient', '');
+          console.log('[Video] No song video found — falling back to ambient visuals');
+          if (videoForKey !== key) return;
+          currentSongVideo = null;
+          playAmbientVideo();
+          return;
+        }
+        const s = searches[tierIdx];
+        const tierLabel = TIER_LABELS[s.tier] || 'Tier ' + s.tier;
+        const qDisplay = s.queries ? s.queries.join(', ') : s.q;
+        try {
+          showSearchStatus(tierLabel, 'yt', 'searching...', qDisplay);
+          const ytList = s.queries
+            ? dedupeById((await Promise.all(s.queries.map(q => ytSearch(q, key)))).map(r => r || []).flat())
+            : await ytSearch(s.q, key);
+          if (videoForKey !== key) return;
+          if (s.queries) console.log('[Video][YT+DM] Tier ' + s.tier + ' → YouTube "' + qDisplay + '" → ' + (ytList?.length || 0) + ' merged');
+          else console.log('[Video][YT+DM] Tier ' + s.tier + ' → YouTube "' + s.q + '"');
+          const ytPick = ytList?.length ? bestFromList(ytList, s.maxRank) : null;
+          if (ytPick) {
+            showSearchStatus(tierLabel, 'yt', 'found', ytPick.title);
+            console.log('[Video][YT+DM] Tier ' + s.tier + ' ✓ YouTube:', ytPick.title, '|', rankLabel(ytPick));
+            const candidates = rankedList(ytList, s.maxRank, tierLabel);
+            tryEmbedYt(candidates, 0, startSec, key, async () => {
+              if (videoForKey !== key) return;
+              currentSongVideo = null;
+              showSearchStatus(tierLabel, 'dm', 'YT unavailable, checking...', qDisplay);
+              const dmList = s.queries
+                ? dedupeById((await Promise.all(s.queries.map(q => dmSearch(q, key)))).map(r => r || []).flat())
+                : await dmSearch(s.q, key);
+              if (s.queries) console.log('[Video][YT+DM] Tier ' + s.tier + ' → Dailymotion (YT unavailable) "' + qDisplay + '" → ' + (dmList?.length || 0) + ' merged');
+              if (videoForKey !== key) return;
+              const dmMaxRank = Math.max(s.maxRank, 3);
+              const dmPick = dmList?.length ? bestFromListWithTier(dmList, dmMaxRank, tierLabel) : null;
+              if (dmPick) {
+                showSearchStatus(tierLabel, 'dm', 'found', dmPick.title);
+                const videoData = { platform: 'dailymotion', id: dmPick.id, title: dmPick.title, channel: dmPick['owner.screenname'] || '', url: 'https://www.dailymotion.com/video/' + dmPick.id, thumb: 'https://www.dailymotion.com/thumbnail/video/' + dmPick.id };
+                currentSongVideo = { key, data: videoData };
+                embedDailymotion(dmPick.id, dmPick.title, dmPick['owner.screenname']);
+                updateHistoryWithVideo(key, videoData);
+              } else {
+                showSearchStatus(tierLabel, 'dm', 'none found', '');
+                tryTierBoth(tierIdx + 1);
+              }
+            });
+            return;
+          }
+          showSearchStatus(tierLabel, 'dm', 'YT had none, checking...', qDisplay);
+          const dmList = s.queries
+            ? dedupeById((await Promise.all(s.queries.map(q => dmSearch(q, key)))).map(r => r || []).flat())
+            : await dmSearch(s.q, key);
+          if (s.queries) console.log('[Video][YT+DM] Tier ' + s.tier + ' → Dailymotion (YT none) "' + qDisplay + '" → ' + (dmList?.length || 0) + ' merged');
+          if (videoForKey !== key) return;
+          const dmMaxRank = Math.max(s.maxRank, 3);
+          const dmPick = dmList?.length ? bestFromListWithTier(dmList, dmMaxRank, tierLabel) : null;
+          if (dmPick) {
+            showSearchStatus(tierLabel, 'dm', 'found', dmPick.title);
+            console.log('[Video][YT+DM] Tier ' + s.tier + ' ✓ Dailymotion:', dmPick.title, '|', rankLabel(dmPick));
+            const videoData = { platform: 'dailymotion', id: dmPick.id, title: dmPick.title, channel: dmPick['owner.screenname'] || '', url: 'https://www.dailymotion.com/video/' + dmPick.id, thumb: 'https://www.dailymotion.com/thumbnail/video/' + dmPick.id };
+            currentSongVideo = { key, data: videoData };
+            embedDailymotion(dmPick.id, dmPick.title, dmPick['owner.screenname']);
+            updateHistoryWithVideo(key, videoData);
+            return;
+          }
+          showSearchStatus(tierLabel, 'dm', 'none found', '');
+          console.log('[Video][YT+DM] Tier ' + s.tier + ' — none found');
+        } catch (_) {}
+        if (videoForKey !== key) return;
+        tryTierBoth(tierIdx + 1);
+      }
+
+      async function tryTier(tierIdx) {
+        if (tierIdx >= searches.length) {
+          showSearchStatus('All tiers', '', 'falling back to ambient', '');
+          console.log('[Video] No song video found — falling back to ambient visuals');
+          if (videoForKey !== key) return;
+          currentSongVideo = null;
+          playAmbientVideo();
+          return;
+        }
+        const s = searches[tierIdx];
+        const tierLabel = TIER_LABELS[s.tier] || 'Tier ' + s.tier;
+        const qDisplay = s.queries ? s.queries.join(', ') : s.q;
+        try {
+          showSearchStatus(tierLabel, useYT ? 'yt' : 'dm', 'searching...', qDisplay);
+          const list = s.queries
+            ? dedupeById((await Promise.all(s.queries.map(q => searchFn(q, key)))).map(r => r || []).flat())
+            : await searchFn(s.q, key);
+          if (s.queries) console.log('[Video][' + platform + '] Tier ' + s.tier + ' → "' + qDisplay + '" → ' + (list?.length || 0) + ' merged');
+          else console.log('[Video][' + platform + '] Tier ' + s.tier + ' → searching "' + s.q + '"');
+          if (videoForKey !== key) return;
+          if (list) {
+            const pick = bestFromList(list, s.maxRank);
+            if (pick) {
+              showSearchStatus(tierLabel, useYT ? 'yt' : 'dm', 'found', pick.title);
+              console.log('[Video][' + platform + '] Tier ' + s.tier + ' ✓ picked:', pick.title, '|', rankLabel(pick));
+              if (videoForKey !== key) return;
+              if (useYT) {
+                const candidates = rankedList(list, s.maxRank, tierLabel);
+                tryEmbedYt(candidates, 0, startSec, key, () => {
+                  if (videoForKey !== key) return;
+                  currentSongVideo = null;
+                  console.log('[Video] All YouTube candidates in tier ' + s.tier + ' unavailable, trying next tier');
+                  showSearchStatus(tierLabel, 'yt', 'unavailable, next tier', '');
+                tryTier(tierIdx + 1);
+                });
+              } else {
+                const videoData = { platform: 'dailymotion', id: pick.id, title: pick.title, channel: pick['owner.screenname'] || '', url: 'https://www.dailymotion.com/video/' + pick.id, thumb: 'https://www.dailymotion.com/thumbnail/video/' + pick.id };
+                currentSongVideo = { key, data: videoData };
+                embedDailymotion(pick.id, pick.title, pick['owner.screenname']);
+                updateHistoryWithVideo(key, videoData);
+              }
+              return;
+            }
+          }
+          showSearchStatus(tierLabel, useYT ? 'yt' : 'dm', 'none found', '');
+          console.log('[Video][' + platform + '] Tier ' + s.tier + ' — none found');
+        } catch (_) {}
+        if (videoForKey !== key) return;
+        tryTier(tierIdx + 1);
+      }
+
+      if (useBoth) {
+        tryTierBoth(0);
+      } else {
+        tryTier(0);
+      }
+    }
+
+    /* ── Ambient / trippy fallback videos ── */
+    const AMBIENT_DM = [
+      { id: 'x8wjvrm', title: 'LOOP Blue Abstract', ch: 'Ambient' },
+      { id: 'x2u7k1a', title: 'Psychedelic Fractal Kaleidoscope', ch: 'Ambient' },
+      { id: 'x6gbd6a', title: 'Psychedelic Trip Fractal Animations', ch: 'Ambient' },
+      { id: 'x2z6z8w', title: 'Fractal Worlds — Mandelbulb 3D 4K', ch: 'Ambient' },
+      { id: 'x324xhk', title: 'Mandelbulb 3D Fractal Animation', ch: 'Ambient' },
+      { id: 'x9dqgpw', title: 'Forest 4K — Nature Scenery & Relaxing', ch: 'Nature' },
+      { id: 'x7xa67f', title: 'Beautiful Nature Scenery & Relaxing Music', ch: 'Nature' },
+      { id: 'x2vztik', title: 'A Psychedelic Animation Trip', ch: 'Ambient' },
+      { id: 'x25d2tr', title: 'DJ Set with Video Fractal', ch: 'Ambient' },
+      { id: 'x7v5sph', title: 'Green Cross — Fractal Zoom 4K 60FPS', ch: 'Ambient' },
+      { id: 'xaebr1', title: 'Trippy Visuals', ch: 'Ambient' },
+      { id: 'x7vrvc6', title: 'Ambient Abstract Music', ch: 'Ambient' },
+    ];
+    const AMBIENT_YT = [
+      { id: 'yIQd2Ya0Ziw', title: '4K Fractal Cosmic Journey', ch: 'Ambient' },
+      { id: 'lM02vNMRRB0', title: 'Northern Lights 4K', ch: 'Nature' },
+      { id: 'SkVqJ1SGeL0', title: 'Abstract Liquid — Colorful Background', ch: 'Ambient' },
+      { id: '2OEL4P1Rz04', title: '10 Hours — Relaxing Aquarium', ch: 'Nature' },
+      { id: 'qC8kxR-gGY4', title: 'Deep Space Nebula 4K', ch: 'Ambient' },
+      { id: 'wyz_2DEah4o', title: 'Psychedelic Visual Mix', ch: 'Ambient' },
+      { id: 'F1B9Fk_SgI0', title: '4K Ocean Waves — Relaxing Nature', ch: 'Nature' },
+      { id: 'kxLn09BjNJg', title: 'Trippy Fractal Zoom', ch: 'Ambient' },
+    ];
+    let ambientDmIdx = Math.floor(Math.random() * AMBIENT_DM.length);
+    let ambientYtIdx = Math.floor(Math.random() * AMBIENT_YT.length);
+    let ambientCycleTimer = null;
+
+    let ambientRetries = 0;
+    function playAmbientVideo(forceDailymotion) {
+      stopAmbientCycle();
+      /* When YouTube is selected, never fall back to Dailymotion */
+      const useYT = settings.bgMode === 'youtube' ? true : !forceDailymotion;
+      if (useYT) {
+        const v = AMBIENT_YT[ambientYtIdx];
+        ambientYtIdx = (ambientYtIdx + 1) % AMBIENT_YT.length;
+        embedYouTube(v.id, 0, v.title, v.ch, () => {
+          if (++ambientRetries < AMBIENT_YT.length) playAmbientVideo();
+          else {
+            ambientRetries = 0;
+            if (settings.bgMode === 'youtube') {
+              showError('YouTube videos unavailable — check proxy or try Dailymotion in Settings.');
+            } else {
+              playAmbientVideo(true);
+            }
+          }
+        });
+        showVideoBadge(v.title, v.ch, 'youtube');
+      } else {
+        const v = AMBIENT_DM[ambientDmIdx];
+        ambientDmIdx = (ambientDmIdx + 1) % AMBIENT_DM.length;
+        embedDailymotion(v.id, v.title, v.ch);
+        showVideoBadge(v.title, v.ch, 'dailymotion');
+      }
+      ambientRetries = 0;
+      ambientCycleTimer = setTimeout(() => {
+        if (videoForKey && document.body.classList.contains('has-video')) {
+          playAmbientVideo();
+        }
+      }, 120000);
+    }
+
+    function stopAmbientCycle() {
+      if (ambientCycleTimer) { clearTimeout(ambientCycleTimer); ambientCycleTimer = null; }
+    }
+
+    function hideVideo() {
+      if (vizRenderer) return;
+      if (_ytPlayer) { try { _ytPlayer.destroy(); } catch(_) {} _ytPlayer = null; }
+      _onYtError = null;
+      document.body.classList.remove('has-video', 'video-ready');
+      videoBg.innerHTML = '';
+      videoForKey = null;
+      currentSongVideo = null;
+      hideVideoBadge();
+      stopAmbientCycle();
+    }
+
+    /* ── Three.js Audio Visualizer ── */
+    let vizAudioCtx = null, vizAnalyserNode = null;
+    let vizRenderer = null, vizScene = null, vizCamera = null, vizAnimId = null;
+    let vizSphere = null, vizInner = null, vizBars = [], vizParticles = null;
+    let vizFreqData = null, vizTimeData = null;
+
+    function startVisualizer() {
+      if (vizRenderer) return;
+      if (!vizAnalyserNode) return;
+
+      stopAmbientCycle();
+      videoBg.innerHTML = '';
+      videoForKey = null;
+      currentSongVideo = null;
+      hideVideoBadge();
+
+      const bufLen = vizAnalyserNode.frequencyBinCount;
+      vizFreqData = new Uint8Array(bufLen);
+      vizTimeData = new Uint8Array(bufLen);
+
+      const w = window.innerWidth, h = window.innerHeight;
+      vizScene = new THREE.Scene();
+      vizCamera = new THREE.PerspectiveCamera(60, w / h, 0.1, 1000);
+      vizCamera.position.z = 5;
+
+      vizRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+      vizRenderer.setSize(w, h);
+      vizRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      vizRenderer.setClearColor(0x0a0a0f);
+      videoBg.appendChild(vizRenderer.domElement);
+      document.body.classList.remove('video-ready');
+      document.body.classList.add('has-video');
+      requestAnimationFrame(() => { document.body.classList.add('video-ready'); });
+
+      const icoGeo = new THREE.IcosahedronGeometry(1.5, 4);
+      icoGeo.userData.orig = new Float32Array(icoGeo.attributes.position.array);
+      const wireMat = new THREE.MeshBasicMaterial({
+        color: 0x00ff9d, wireframe: true, transparent: true, opacity: 0.25
+      });
+      vizSphere = new THREE.Mesh(icoGeo, wireMat);
+      vizScene.add(vizSphere);
+
+      const innerGeo = new THREE.IcosahedronGeometry(1.45, 3);
+      const innerMat = new THREE.MeshBasicMaterial({
+        color: 0x00ff9d, transparent: true, opacity: 0.04
+      });
+      vizInner = new THREE.Mesh(innerGeo, innerMat);
+      vizScene.add(vizInner);
+
+      const barCount = 64;
+      const barGeo = new THREE.BoxGeometry(0.06, 1, 0.06);
+      vizBars = [];
+      for (let i = 0; i < barCount; i++) {
+        const mat = new THREE.MeshBasicMaterial({
+          color: 0x00ff9d, transparent: true, opacity: 0.55
+        });
+        const bar = new THREE.Mesh(barGeo, mat);
+        const angle = (i / barCount) * Math.PI * 2;
+        const r = 2.4;
+        bar.position.x = Math.cos(angle) * r;
+        bar.position.z = Math.sin(angle) * r;
+        bar.rotation.z = -angle + Math.PI / 2;
+        bar.rotation.y = angle;
+        bar.userData.angle = angle;
+        bar.scale.y = 0.1;
+        vizScene.add(bar);
+        vizBars.push(bar);
+      }
+
+      const pCount = 600;
+      const pGeo = new THREE.BufferGeometry();
+      const pPos = new Float32Array(pCount * 3);
+      const pSpeeds = new Float32Array(pCount);
+      for (let i = 0; i < pCount; i++) {
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const rad = 3.5 + Math.random() * 5;
+        pPos[i * 3] = rad * Math.sin(phi) * Math.cos(theta);
+        pPos[i * 3 + 1] = rad * Math.sin(phi) * Math.sin(theta);
+        pPos[i * 3 + 2] = rad * Math.cos(phi);
+        pSpeeds[i] = 0.002 + Math.random() * 0.005;
+      }
+      pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+      pGeo.userData.speeds = pSpeeds;
+      const pMat = new THREE.PointsMaterial({
+        color: 0x00ff9d, size: 0.035, transparent: true, opacity: 0.5,
+        blending: THREE.AdditiveBlending, depthWrite: false
+      });
+      vizParticles = new THREE.Points(pGeo, pMat);
+      vizScene.add(vizParticles);
+
+      window.addEventListener('resize', onVizResize);
+      animateViz();
+    }
+
+    function onVizResize() {
+      if (!vizRenderer) return;
+      const w = window.innerWidth, h = window.innerHeight;
+      vizCamera.aspect = w / h;
+      vizCamera.updateProjectionMatrix();
+      vizRenderer.setSize(w, h);
+    }
+
+    function animateViz() {
+      vizAnimId = requestAnimationFrame(animateViz);
+      if (!vizRenderer || !vizScene || !vizCamera) return;
+
+      if (vizAnalyserNode) {
+        vizAnalyserNode.getByteFrequencyData(vizFreqData);
+        vizAnalyserNode.getByteTimeDomainData(vizTimeData);
+      }
+
+      let bass = 0, mid = 0, treble = 0, energy = 0;
+      const len = vizFreqData.length;
+      const bassEnd = Math.floor(len * 0.12);
+      const midEnd = Math.floor(len * 0.5);
+      for (let i = 0; i < len; i++) {
+        const v = vizFreqData[i] / 255;
+        energy += v;
+        if (i < bassEnd) bass += v;
+        else if (i < midEnd) mid += v;
+        else treble += v;
+      }
+      bass = bassEnd > 0 ? bass / bassEnd : 0;
+      mid = (midEnd - bassEnd) > 0 ? mid / (midEnd - bassEnd) : 0;
+      treble = (len - midEnd) > 0 ? treble / (len - midEnd) : 0;
+      energy = len > 0 ? energy / len : 0;
+
+      const t = performance.now() * 0.001;
+
+      if (vizSphere) {
+        const geo = vizSphere.geometry;
+        const pos = geo.attributes.position;
+        const orig = geo.userData.orig;
+        for (let i = 0; i < pos.count; i++) {
+          const ox = orig[i * 3], oy = orig[i * 3 + 1], oz = orig[i * 3 + 2];
+          const mag = Math.sqrt(ox * ox + oy * oy + oz * oz) || 1;
+          const nx = ox / mag, ny = oy / mag, nz = oz / mag;
+          const fi = Math.floor((Math.atan2(ny, nx) + Math.PI) / (Math.PI * 2) * len);
+          const fv = (vizFreqData[fi % len] || 0) / 255;
+          const disp = fv * 0.6 + Math.sin(t * 1.5 + i * 0.05) * 0.03;
+          pos.array[i * 3] = ox + nx * disp;
+          pos.array[i * 3 + 1] = oy + ny * disp;
+          pos.array[i * 3 + 2] = oz + nz * disp;
+        }
+        pos.needsUpdate = true;
+        vizSphere.rotation.y += 0.003 + bass * 0.012;
+        vizSphere.rotation.x += 0.001 + treble * 0.003;
+        vizSphere.material.opacity = 0.15 + energy * 0.45;
+      }
+
+      if (vizInner) {
+        vizInner.rotation.copy(vizSphere.rotation);
+        vizInner.scale.setScalar(0.96 + bass * 0.2);
+        vizInner.material.opacity = 0.03 + energy * 0.1;
+      }
+
+      for (let i = 0; i < vizBars.length; i++) {
+        const fi = Math.floor((i / vizBars.length) * len);
+        const fv = (vizFreqData[fi % len] || 0) / 255;
+        vizBars[i].scale.y = 0.05 + fv * 2.5;
+        vizBars[i].material.opacity = 0.2 + fv * 0.6;
+        const hue = 0.45 + fv * 0.12;
+        vizBars[i].material.color.setHSL(hue, 1, 0.45 + fv * 0.2);
+      }
+
+      if (vizParticles) {
+        const pp = vizParticles.geometry.attributes.position;
+        const sp = vizParticles.geometry.userData.speeds;
+        for (let i = 0; i < pp.count; i++) {
+          const idx = i * 3;
+          pp.array[idx] += Math.sin(t + i) * sp[i] * (1 + bass * 4);
+          pp.array[idx + 1] += Math.cos(t * 0.7 + i) * sp[i] * (1 + mid * 3);
+          pp.array[idx + 2] += Math.sin(t * 0.5 + i * 0.5) * sp[i];
+          const d = Math.sqrt(pp.array[idx] ** 2 + pp.array[idx + 1] ** 2 + pp.array[idx + 2] ** 2);
+          if (d > 9) {
+            const s = (3.5 + Math.random() * 2) / d;
+            pp.array[idx] *= s; pp.array[idx + 1] *= s; pp.array[idx + 2] *= s;
+          }
+        }
+        pp.needsUpdate = true;
+        vizParticles.rotation.y += 0.0008 + bass * 0.003;
+        vizParticles.material.opacity = 0.25 + energy * 0.55;
+        vizParticles.material.size = 0.025 + bass * 0.06;
+      }
+
+      const hue = 0.45 + energy * 0.15;
+      if (vizSphere) vizSphere.material.color.setHSL(hue, 1, 0.45 + energy * 0.2);
+      if (vizInner) vizInner.material.color.setHSL(hue, 0.8, 0.4 + energy * 0.15);
+
+      vizRenderer.render(vizScene, vizCamera);
+    }
+
+    function destroyVisualizer() {
+      document.body.classList.remove('video-ready');
+      if (vizAnimId) { cancelAnimationFrame(vizAnimId); vizAnimId = null; }
+      window.removeEventListener('resize', onVizResize);
+      if (vizRenderer) {
+        vizRenderer.dispose();
+        if (vizRenderer.domElement && vizRenderer.domElement.parentNode) {
+          vizRenderer.domElement.remove();
+        }
+        vizRenderer = null;
+      }
+      if (vizScene) {
+        vizScene.traverse(obj => {
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) obj.material.dispose();
+        });
+      }
+      vizScene = null; vizCamera = null;
+      vizSphere = null; vizInner = null;
+      vizBars = []; vizParticles = null;
+      vizFreqData = null; vizTimeData = null;
+    }
+
+    /* ── ACRCloud HMAC-SHA1 signing (Web Crypto) ── */
+    async function hmacSha1(secret, message) {
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']
+      );
+      const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
+      return btoa(String.fromCharCode(...new Uint8Array(sig)));
+    }
+
+    /* ── Provider: ACRCloud ── */
+    async function identifyACRCloud(audioBlob) {
+      const host = settings.acrHost.replace(/^https?:\/\//, '');
+      const ts = Math.floor(Date.now() / 1000).toString();
+      const stringToSign = 'POST\n/v1/identify\n' + settings.acrKey + '\naudio\n1\n' + ts;
+      const signature = await hmacSha1(settings.acrSecret, stringToSign);
+
+      const bytes = await audioBlob.arrayBuffer();
+      const fd = new FormData();
+      fd.append('sample', audioBlob, 'sample.wav');
+      fd.append('sample_bytes', bytes.byteLength.toString());
+      fd.append('access_key', settings.acrKey);
+      fd.append('data_type', 'audio');
+      fd.append('signature_version', '1');
+      fd.append('signature', signature);
+      fd.append('timestamp', ts);
+
+      const res = await fetch('https://' + host + '/v1/identify', { method: 'POST', body: fd });
+      trackRequest('acrcloud');
+      const data = await res.json();
+
+      if (data.status?.code !== 0 || !data.metadata?.music?.length) {
+        if (data.status?.code === 3003 || data.status?.code === 3015) {
+          showError('ACRCloud auth error — check your credentials in Settings.');
+        }
+        return null;
+      }
+      const m = data.metadata.music[0];
+      console.log('[ACRCloud] raw match:', JSON.stringify(m, null, 2));
+      const artist = m.artists?.map(a => a.name).join(', ') || 'Unknown';
+      const offsetMs = m.play_offset_ms || 0;
+      const mins = Math.floor(offsetMs / 60000);
+      const secs = Math.floor((offsetMs % 60000) / 1000);
+
+      const sp = m.external_metadata?.spotify;
+      const am = m.external_metadata?.apple_music;
+      const deezer = m.external_metadata?.deezer;
+
+      return {
+        title: m.title || 'Unknown',
+        artist: artist,
+        album: m.album?.name || '',
+        timecode: mins + ':' + String(secs).padStart(2, '0'),
+        song_link: null,
+        spotify: sp?.track ? {
+          duration_ms: m.duration_ms || null,
+          external_urls: { spotify: 'https://open.spotify.com/track/' + sp.track.id },
+          album: { images: sp.album?.cover_big ? [{ url: sp.album.cover_big }]
+            : sp.album?.cover_medium ? [{ url: sp.album.cover_medium }] : [] }
+        } : null,
+        apple_music: am ? {
+          url: am.url || (am.track?.id ? 'https://music.apple.com/song/' + am.track.id : null),
+          durationInMillis: m.duration_ms || null,
+          artwork: am.artwork ? { url: am.artwork.url } : null
+        } : null,
+        _deezerUrl: deezer?.track?.id ? 'https://www.deezer.com/track/' + deezer.track.id : null,
+        _coverFallback: m.external_metadata?.deezer?.album?.cover_big
+          || m.external_metadata?.deezer?.album?.cover_medium || null
+      };
+    }
+
+    /* ── Provider: AudD ── */
+    async function identifyAudD(audioBlob) {
+      const fd = new FormData();
+      fd.append('file', audioBlob, 'recording.wav');
+      fd.append('api_token', settings.auddToken);
+      fd.append('return', 'apple_music,spotify');
+
+      const res = await fetch('https://api.audd.io/', { method: 'POST', body: fd });
+      trackRequest('audd');
+      const data = await res.json();
+
+      if (data.status === 'success' && data.result) {
+        return data.result;
+      }
+      if (data.status === 'error' && data.error) {
+        const code = data.error.error_code;
+        if (code === 900 || code === 901) {
+          showError('Invalid AudD token — update it in Settings.');
+        }
+      }
+      return null;
+    }
+
+    /* ── Core: identify a clip ── */
+    async function identify(blob, clipStart) {
+      if (isIdentifying) return;
+      isIdentifying = true;
+
+      const providerName = settings.provider === 'acrcloud' ? 'ACRCloud' : 'AudD';
+
+      phase('Song detected', curKey
+        ? 'Audio captured while ' + curLabel + ' may still be playing'
+        : 'A music sample was captured', true, false);
+
+      await new Promise(r => setTimeout(r, 400));
+      if (!isListening) { isIdentifying = false; return; }
+
+      phase('Identifying...', curKey
+        ? 'Checking if ' + curLabel + ' is still playing'
+        : 'Sending audio to ' + providerName, true, true);
+
+      try {
+        let audioBlob = blob;
+        try { audioBlob = await blobToWav(blob); } catch(_) {}
+
+        if (settings.provider === 'acrcloud' && (!settings.acrHost || !settings.acrKey || !settings.acrSecret)) {
+          showError('ACRCloud not configured — open Settings (gear icon) to enter your credentials.');
+          isIdentifying = false;
+          phase('Listening for music...', 'Configure ACRCloud in settings', true, false);
+          return;
+        }
+
+        const r = settings.provider === 'acrcloud'
+          ? await identifyACRCloud(audioBlob)
+          : await identifyAudD(audioBlob);
+
+        const now = performance.now();
+
+        if (r) {
+          showError('');
+          missCount = 0;
+          const key = r.artist + '::' + r.title;
+          const label = r.title + ' — ' + r.artist;
+          const tc = parseTimecode(r.timecode);
+          const dur = getDuration(r);
+
+          if (!curKey) {
+            curKey = key; curLabel = label; curTitle = r.title; curArtist = r.artist;
+            curDurationMs = dur; curResult = r;
+            curStartedAt = Number.isFinite(tc) ? now - tc : now;
+            addHistory(r, '', null);
+            showNowPlaying(r, 'Now Playing');
+            fetchCoverArt(r);
+            phase('Song identified', label, true, false);
+            fetchLyrics(r.title, r.artist, r.album, dur);
+            if (videoForKey !== key) searchAndPlayVideo(r.title, r.artist, Number.isFinite(tc) ? tc / 1000 : 0);
+
+          } else if (curKey === key || isSameSong(curArtist, curTitle, r.artist, r.title)) {
+            curDurationMs = dur || curDurationMs;
+            curResult = r;
+            if (isPaused) resumeFromPause();
+            nowPlaying.classList.remove('paused');
+            phase('Still playing', label + ' • at ' + fmtPos(now - curStartedAt), true, false);
+
+          } else {
+            const prevLabel = curLabel;
+            const prevPlaytime = curStartedAt ? fmtPos(now - curStartedAt) : '';
+            if (curResult) addHistory(curResult, 'Played for ~' + prevPlaytime);
+            stopProgress();
+            clearLyrics();
+            curKey = key; curLabel = label; curTitle = r.title; curArtist = r.artist;
+            curDurationMs = dur; curResult = r;
+            curStartedAt = Number.isFinite(tc) ? now - tc : now;
+            addHistory(r, '', null);
+            showNowPlaying(r, 'Song Changed');
+            fetchCoverArt(r);
+            phase('New song detected', prevLabel + ' → ' + label, true, false);
+            fetchLyrics(r.title, r.artist, r.album, dur);
+            if (videoForKey !== key) searchAndPlayVideo(r.title, r.artist, Number.isFinite(tc) ? tc / 1000 : 0);
+          }
+
+          startProgress();
+          if (syncedLines.length) startLyrics();
+          [resultsList, resultsListDrawer].filter(Boolean).forEach(list => list.querySelectorAll('.no-result').forEach(el => el.remove()));
+
+        } else {
+          missCount++;
+          if (curKey && missCount >= 1) {
+            showPaused();
+            phase('Song paused?', curLabel + ' — no audio match detected', true, false);
+          } else if (!curKey) {
+            phase('Listening for music...', 'No match yet — keep playing', true, false);
+          }
+        }
+      } catch (err) {
+        showError('Could not reach ' + providerName + '. Check your internet connection.');
+        if (curKey) {
+          phase('Still playing', curLabel, true, false);
+        } else {
+          phase('Listening for music...', 'Waiting for a clear song sample', true, false);
+        }
+      } finally {
+        isIdentifying = false;
+      }
+    }
+
+    /* ── Recording loop ── */
+    function startRecording() {
+      if (!audioStream) return;
+      function record() {
+        if (!isListening || !audioStream) return;
+        const clipStart = performance.now();
+        mediaRecorder = new MediaRecorder(audioStream, {
+          mimeType: 'audio/webm;codecs=opus',
+          audioBitsPerSecond: 128000,
+        });
+        const chunks = [];
+        mediaRecorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          if (blob.size > 20000) identify(blob, clipStart);
+        };
+        mediaRecorder.start();
+        setTimeout(() => {
+          if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
+        }, RECORD_MS);
+      }
+      record();
+      recordLoop = setInterval(record, RECORD_MS + GAP_MS);
+    }
+
+    /* ── Start / Stop ── */
+    async function startListening() {
+      showError('');
+      try {
+        audioStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        });
+      } catch (e1) {
+        try {
+          audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (e2) {
+          showError(e2?.name === 'NotAllowedError'
+            ? 'Microphone access denied. Allow it in browser settings and try again.'
+            : (e2?.message || 'Could not access the microphone.'));
+          phase('Click to start listening', '');
+          return;
+        }
+      }
+
+      isListening = true;
+      listeningStartedAt = performance.now();
+      curKey = null; curLabel = ''; curStartedAt = 0; curDurationMs = null;
+      curResult = null; missCount = 0;
+      resetProgress();
+      hideNowPlaying();
+      phase('Listening for music...', 'Waiting for a clear song sample', true, false);
+
+      vizAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const micSource = vizAudioCtx.createMediaStreamSource(audioStream);
+      vizAnalyserNode = vizAudioCtx.createAnalyser();
+      vizAnalyserNode.fftSize = 512;
+      vizAnalyserNode.smoothingTimeConstant = 0.82;
+      micSource.connect(vizAnalyserNode);
+
+      if (settings.bgMode === 'visualizer') startVisualizer();
+
+      startRecording();
+    }
+
+    function stopListening() {
+      isListening = false;
+      if (curResult && curStartedAt) {
+        const playtime = fmtPos(performance.now() - curStartedAt);
+        addHistory(curResult, 'Played for ~' + playtime);
+      }
+      curKey = null; curLabel = ''; curStartedAt = 0; curDurationMs = null;
+      curResult = null; missCount = 0;
+      resetProgress();
+      clearLyrics();
+      hideNowPlaying();
+      destroyVisualizer();
+      hideVideo();
+      if (vizAudioCtx) { vizAudioCtx.close().catch(() => {}); vizAudioCtx = null; vizAnalyserNode = null; }
+      if (recordLoop) { clearInterval(recordLoop); recordLoop = null; }
+      if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
+      mediaRecorder = null;
+      if (audioStream) { audioStream.getTracks().forEach(t => t.stop()); audioStream = null; }
+      phase('Click to start listening', '');
+    }
+
+    micBtn.addEventListener('click', () => {
+      if (isListening) stopListening(); else startListening();
+    });
+
+    function openDrawer() {
+      resultsDrawer.classList.add('drawer-open');
+      drawerOverlay.classList.add('visible');
+    }
+    function closeDrawer() {
+      resultsDrawer.classList.remove('drawer-open');
+      drawerOverlay.classList.remove('visible');
+    }
+    historyToggle.addEventListener('click', () => {
+      if (resultsDrawer.classList.contains('drawer-open')) closeDrawer();
+      else openDrawer();
+    });
+    drawerOverlay.addEventListener('click', closeDrawer);
+
+    loadHistory();
+
+    console.log('[DJ Live] v12 loaded — YouTube + Dailymotion + Visualizer backgrounds');
+  </script>
+</body>
+</html>

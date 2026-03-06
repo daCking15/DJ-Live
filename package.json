@@ -1,0 +1,10 @@
+{
+  "name": "dj-live",
+  "version": "1.0.0",
+  "description": "Real-time song recognition from microphone using AudD API",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  }
+}
