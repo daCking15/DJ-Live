@@ -116,6 +116,53 @@
     .status-text.listening { color: var(--accent); font-weight: 500; }
     .status-subtext { margin-top: 0.3rem; min-height: 1.1rem; font-size: 0.84rem; color: var(--text-muted); }
 
+    .life-mode-radio {
+      display: inline-flex; align-items: center; gap: 0.6rem; margin-top: 1rem;
+      padding: 0.5rem 1rem; min-height: 44px; min-width: 120px; justify-content: center;
+      border-radius: 50px; cursor: pointer;
+      border: 2px solid rgba(255,0,255,0.3); background: rgba(120,40,180,0.1);
+      transition: all 0.3s ease; position: relative; z-index: 10;
+      pointer-events: auto; -webkit-tap-highlight-color: transparent;
+      font: inherit; color: inherit; appearance: none; -webkit-appearance: none;
+      user-select: none; touch-action: manipulation;
+    }
+    .life-mode-radio::before {
+      content: ''; position: absolute; inset: -2px; border-radius: 50px;
+      background: linear-gradient(135deg, #ff00ff, #00ffff, #ff00ff);
+      background-size: 200% 200%; opacity: 0; z-index: -1; transition: opacity 0.3s;
+    }
+    .life-mode-radio:hover { border-color: rgba(255,0,255,0.6); background: rgba(120,40,180,0.15); }
+    .life-mode-radio.active { border-color: #ff00ff; background: rgba(255,0,255,0.12); box-shadow: 0 0 20px rgba(255,0,255,0.3); }
+    .life-mode-radio .radio-dot {
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 2px solid rgba(255,0,255,0.5); background: transparent;
+      transition: all 0.3s ease;
+    }
+    .life-mode-radio.active .radio-dot { background: #ff00ff; box-shadow: 0 0 12px rgba(255,0,255,0.6); }
+    .life-mode-radio .radio-label { font-size: 0.95rem; font-weight: 600; color: var(--text-muted); }
+    .life-mode-radio:hover .radio-label, .life-mode-radio.active .radio-label { color: #ff88ff; }
+
+    /* ── Life Mode fullscreen ── */
+    .life-mode-fullscreen, .life-mode-stop { display: none; }
+    body.life-mode-active .life-mode-fullscreen {
+      display: flex; position: fixed; inset: 0; z-index: 50;
+      flex-direction: column; justify-content: flex-end; align-items: stretch;
+      padding: 0 2rem 6rem 8rem; pointer-events: none;
+    }
+    body.life-mode-active .life-mode-fullscreen .words-text {
+      font-size: clamp(2.5rem, 8vw, 5rem); font-weight: 700; color: #ff88ff;
+      white-space: nowrap; overflow-x: auto; text-align: left;
+    }
+    body.life-mode-active .life-mode-stop {
+      display: block; position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
+      z-index: 60; padding: 1rem 2.5rem; pointer-events: auto;
+      background: rgba(0,0,0,0.7); border: 2px solid rgba(255,0,255,0.6);
+      border-radius: 50px; color: #ff88ff; font-size: 1.1rem; font-weight: 600;
+      cursor: pointer;
+    }
+    body.life-mode-active main, body.life-mode-active .fs-brand,
+    body.life-mode-active .history-toggle, body.life-mode-active .settings-btn { display: none !important; }
+
     /* ── Now Playing (base / hidden) ── */
     .now-playing {
       background: var(--bg-card); border: 1px solid var(--accent-dim);
@@ -1174,6 +1221,10 @@
   </div>
 
   <div class="fs-brand">DJ Live</div>
+  <div class="life-mode-fullscreen" id="lifeModeFullscreen">
+    <div class="words-text" id="lifeModeFullscreenText"></div>
+  </div>
+  <button class="life-mode-stop" id="lifeModeStop" type="button">Tap to stop</button>
   <main>
     <div class="landing-left">
       <header>
@@ -1191,6 +1242,10 @@
           <p class="status-text" id="statusText">Click to start listening</p>
           <p class="status-subtext" id="statusSubtext"></p>
         </div>
+        <button type="button" class="life-mode-radio" id="lifeModeBtn" aria-pressed="false">
+          <span class="radio-dot"></span>
+          <span class="radio-label">Life Mode</span>
+        </button>
       </div>
     </div>
 
@@ -3128,8 +3183,167 @@
       phase('Click to start listening', '');
     }
 
+    /* ── Life Mode: speech → YouTube search ── */
+    let isLifeModeListening = false;
+    let lifeModeRecognition = null;
+    let lifeModeSearchDebounceTimer = null;
+    let lifeModeCurrentDisplay = '';
+    let lifeModeQueryCooldownUntil = 0;
+    let lifeModeVideoReadyCheck = null;
+    let lifeModeCountdownInterval = null;
+    const lifeModeFullscreenTextEl = document.getElementById('lifeModeFullscreenText');
+
+    async function lifeModeSearchAndPlay(query) {
+      if (!query || query.trim().length < 2) return;
+      const q = query.trim();
+      const key = 'lifemode::' + q;
+      videoForKey = key;
+      const list = await ytSearch(q, key);
+      if (videoForKey !== key || !list?.length) return;
+      const pick = list[0];
+      currentSongVideo = { key, data: { platform: 'youtube', id: pick.id, title: pick.title, channel: pick['owner.screenname'] || '' } };
+      document.body.classList.add('has-video');
+      stopAmbientCycle();
+      embedYouTube(pick.id, 0, pick.title, pick['owner.screenname']);
+      showVideoBadge(pick.title, pick['owner.screenname'], 'youtube');
+      lifeModeQueryCooldownUntil = Date.now() + 5000;
+    }
+
+    function startLifeModeSpeechRecognition() {
+      if (!isLifeModeListening || !lifeModeRecognition) return;
+      let fullTranscript = '';
+      lifeModeCurrentDisplay = '';
+      if (lifeModeFullscreenTextEl) lifeModeFullscreenTextEl.textContent = '';
+      lifeModeRecognition.onresult = (e) => {
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const transcript = e.results[i][0].transcript;
+          if (e.results[i].isFinal) fullTranscript += transcript + ' ';
+          else interim = transcript;
+        }
+        lifeModeCurrentDisplay = (fullTranscript + interim).trim();
+        if (lifeModeFullscreenTextEl) lifeModeFullscreenTextEl.textContent = lifeModeCurrentDisplay;
+        const inCooldown = Date.now() < lifeModeQueryCooldownUntil;
+        if (lifeModeCurrentDisplay.trim().length >= 1 && !lifeModeSearchDebounceTimer && !inCooldown) {
+          lifeModeSearchDebounceTimer = setTimeout(() => {
+            lifeModeSearchDebounceTimer = null;
+            if (!isLifeModeListening) return;
+            lifeModeQueryCooldownUntil = Date.now() + 5000;
+            const q = lifeModeCurrentDisplay.trim();
+            if (q.length >= 2) lifeModeSearchAndPlay(q);
+            fullTranscript = '';
+            lifeModeCurrentDisplay = '';
+            if (lifeModeRecognition && isLifeModeListening) lifeModeRecognition.abort();
+          }, 5000);
+        }
+      };
+      lifeModeRecognition.onend = () => {
+        if (!isLifeModeListening) return;
+        lifeModeRecognition.start();
+      };
+      lifeModeRecognition.start();
+    }
+
+    function startLifeModeListening() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        showError('Speech recognition not supported. Try Chrome.');
+        return;
+      }
+      if (isLifeModeListening) return;
+      if (isListening) stopListening();
+      showError('');
+      lifeModeRecognition = new SpeechRecognition();
+      lifeModeRecognition.continuous = true;
+      lifeModeRecognition.interimResults = true;
+      lifeModeRecognition.lang = 'en-US';
+      lifeModeRecognition.onerror = (e) => {
+        if (e.error === 'no-speech') return;
+        if (e.error === 'aborted') return;
+        console.warn('[Life Mode] Speech error:', e.error);
+      };
+      isLifeModeListening = true;
+      document.body.classList.add('life-mode-active', 'has-video');
+      phase('Life Mode — speak to search', '5s after words before search', true, false);
+      micBtn.classList.add('listening');
+      playAmbientVideo();
+      lifeModeVideoReadyCheck = setInterval(() => {
+        if (!isLifeModeListening) {
+          clearInterval(lifeModeVideoReadyCheck);
+          lifeModeVideoReadyCheck = null;
+          return;
+        }
+        if (document.body.classList.contains('video-ready')) {
+          clearInterval(lifeModeVideoReadyCheck);
+          lifeModeVideoReadyCheck = null;
+          let countdown = 5;
+          phase('Life Mode', countdown + '...', true, false);
+          lifeModeCountdownInterval = setInterval(() => {
+            if (!isLifeModeListening) {
+              clearInterval(lifeModeCountdownInterval);
+              lifeModeCountdownInterval = null;
+              return;
+            }
+            countdown--;
+            if (countdown <= 0) {
+              clearInterval(lifeModeCountdownInterval);
+              lifeModeCountdownInterval = null;
+              if (isLifeModeListening) startLifeModeSpeechRecognition();
+            } else {
+              phase('Life Mode', countdown + '...', true, false);
+            }
+          }, 1000);
+        }
+      }, 300);
+    }
+
+    function stopLifeModeListening() {
+      isLifeModeListening = false;
+      document.body.classList.remove('life-mode-active');
+      if (lifeModeSearchDebounceTimer) {
+        clearTimeout(lifeModeSearchDebounceTimer);
+        lifeModeSearchDebounceTimer = null;
+      }
+      if (lifeModeVideoReadyCheck) {
+        clearInterval(lifeModeVideoReadyCheck);
+        lifeModeVideoReadyCheck = null;
+      }
+      if (lifeModeCountdownInterval) {
+        clearInterval(lifeModeCountdownInterval);
+        lifeModeCountdownInterval = null;
+      }
+      if (lifeModeRecognition) {
+        lifeModeRecognition.abort();
+        lifeModeRecognition = null;
+      }
+      micBtn.classList.remove('listening');
+      if (lifeModeFullscreenTextEl) lifeModeFullscreenTextEl.textContent = '';
+      phase('Click to start listening', '');
+      hideVideo();
+    }
+
     micBtn.addEventListener('click', () => {
-      if (isListening) stopListening(); else startListening();
+      const lifeModeActive = document.getElementById('lifeModeBtn')?.classList.contains('active');
+      if (lifeModeActive) {
+        if (isLifeModeListening) stopLifeModeListening();
+        else startLifeModeListening();
+      } else {
+        if (isListening) stopListening(); else startListening();
+      }
+    });
+
+    document.getElementById('lifeModeStop')?.addEventListener('click', () => {
+      if (isLifeModeListening) stopLifeModeListening();
+    });
+
+    document.getElementById('lifeModeBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const btn = document.getElementById('lifeModeBtn');
+      if (!btn) return;
+      btn.classList.toggle('active');
+      const isActive = btn.classList.contains('active');
+      btn.setAttribute('aria-pressed', isActive);
+      if (statusSubtext) statusSubtext.textContent = isActive ? 'Click mic to start Life Mode' : '';
     });
 
     function openDrawer() {
