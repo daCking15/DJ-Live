@@ -127,6 +127,24 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (parsed.pathname === '/api/reddit') {
+    const q = parsed.searchParams.get('q');
+    if (!q) { res.writeHead(400); res.end('Missing q param'); return; }
+    const redditUrl = 'https://www.reddit.com/search.json?q=' + encodeURIComponent(q) + '&sort=relevance&limit=10&restrict_sr=false';
+    require('https').get(redditUrl, { headers: { 'User-Agent': 'DJLive/1.0' } }, (redditRes) => {
+      let data = '';
+      redditRes.on('data', (c) => (data += c));
+      redditRes.on('end', () => {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(data);
+      });
+    }).on('error', () => {
+      res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ error: 'Reddit fetch failed' }));
+    });
+    return;
+  }
+
   if (req.url === '/' || req.url === '/index.html') {
     serveFile(res, path.join(__dirname, 'index.html'), 'text/html');
     return;

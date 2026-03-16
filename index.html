@@ -116,6 +116,13 @@
     .status-text.listening { color: var(--accent); font-weight: 500; }
     .status-subtext { margin-top: 0.3rem; min-height: 1.1rem; font-size: 0.84rem; color: var(--text-muted); }
 
+    /* ── Spotify card (when music source) ── */
+    .spotify-card { display: none; }
+    body.spotify-mode .spotify-card { display: block; }
+    body.spotify-mode .mic-card { display: none !important; }
+    .spotify-status-msg { font-size: 0.9rem; color: var(--text-muted); text-align: center; margin-top: 0.5rem; }
+    .spotify-status-msg.active { color: var(--accent); font-weight: 500; }
+
     /* ── Now Playing (base / hidden) ── */
     .now-playing {
       background: var(--bg-card); border: 1px solid var(--accent-dim);
@@ -171,6 +178,45 @@
     .np-links a { font-size: 0.78rem; color: var(--accent); text-decoration: none; }
     .np-links a:hover { text-decoration: underline; }
 
+    .social-posts-ticker {
+      display: none;
+      position: fixed; top: 6rem; left: 1.5rem; z-index: 90;
+      max-width: 480px; width: calc(100vw - 3rem);
+      background: #1a1a1b; border: 1px solid #343536;
+      border-radius: 10px; overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+    .social-posts-ticker.visible { display: block; }
+    .social-posts-ticker .sp-reddit-card {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+    .social-posts-ticker.sp-visible .sp-reddit-card {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .social-posts-ticker .sp-reddit-card {
+      display: flex; padding: 1.25rem 1.5rem; gap: 0.75rem;
+      text-decoration: none; color: #d7dadc; transition: background 0.2s;
+    }
+    .social-posts-ticker .sp-reddit-card:hover { background: #272729; }
+    .social-posts-ticker .sp-votes {
+      flex-shrink: 0; display: flex; flex-direction: column; align-items: center;
+      color: #8e8e93; font-size: 0.9rem; font-weight: 600;
+    }
+    .social-posts-ticker .sp-vote-icon {
+      width: 28px; height: 28px; color: #ff4500; margin: -2px 0;
+    }
+    .social-posts-ticker .sp-body { flex: 1; min-width: 0; }
+    .social-posts-ticker .sp-meta {
+      font-size: 0.9rem; color: #818384; margin-bottom: 0.4rem;
+    }
+    .social-posts-ticker .sp-meta .sp-sub { color: #ff4500; font-weight: 600; }
+    .social-posts-ticker .sp-title { font-size: 1.12rem; line-height: 1.35; color: #d7dadc; }
+    .social-posts-ticker .sp-footer { font-size: 0.82rem; color: #818384; margin-top: 0.5rem; }
+    .social-posts-loading { font-size: 0.95rem; color: var(--text-muted); padding: 1.25rem 1.5rem; }
+
     /* ── Lyrics ── */
     .lyrics-box {
       margin-top: 1rem; padding: 0.75rem 0;
@@ -186,22 +232,23 @@
     .lyrics-box::before { top: 0; background: linear-gradient(var(--bg-deep), transparent); }
     .lyrics-box::after { bottom: 0; background: linear-gradient(transparent, var(--bg-deep)); }
 
+    .lyrics-links { display: none; }
+    .lyrics-links a { color: #1DB954; text-decoration: none; }
+    .lyrics-links a:hover { text-decoration: underline; }
+
     .lyrics-inner {
       padding: 3rem 0;
     }
 
     .lyrics-line {
-      font-size: 1.1rem; line-height: 1.8;
+      font-size: 1.2rem; line-height: 1.8; min-height: 1.8em;
       color: var(--text-muted);
-      transition: color 0.2s ease, font-size 0.2s ease, opacity 0.25s ease, transform 0.2s ease;
       text-align: center;
       padding: 0.15rem 0;
     }
     .lyrics-line.active {
       color: var(--text);
       font-weight: 600;
-      font-size: 1.35rem;
-      transform: scale(1.02);
     }
     .lyrics-line.past { opacity: 0.3; }
 
@@ -366,7 +413,7 @@
 
     .error-msg {
       background: rgba(255,80,80,0.15); border: 1px solid rgba(255,80,80,0.3);
-      color: #ff6b6b; padding: 1rem 1.25rem; border-radius: 8px;
+      color: #ff6b6b; padding: 1.25rem 1.5rem; border-radius: 8px;
       margin-bottom: 1rem; font-size: 0.9rem;
     }
 
@@ -400,8 +447,9 @@
     .drawer-overlay {
       display: none;
       position: fixed; inset: 0; z-index: 180;
-      background: rgba(0,0,0,0.5);
+      background: transparent;
       opacity: 0;
+      pointer-events: none;
       transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .drawer-overlay.visible { display: block; opacity: 1; }
@@ -648,6 +696,9 @@
     }
     body.has-video .video-bg { display: block; }
     body.has-video.video-ready .video-bg { opacity: 1; }
+    body.has-video.video-paused .video-bg,
+    body.video-paused .video-bg,
+    .video-bg.video-paused { opacity: 0 !important; transition: opacity 0.3s ease; }
 
     .video-bg iframe {
       position: absolute !important; top: 50% !important; left: 50% !important;
@@ -865,17 +916,21 @@
     /* History → slide-in drawer */
     body.has-song .results {
       position: fixed; right: 0; top: 0; bottom: 0;
-      width: min(380px, 85vw);
+      width: min(520px, 92vw);
       z-index: 200; margin: 0;
       background: var(--bg-card);
       border-left: 1px solid var(--border);
       padding: 1.5rem;
       overflow-y: auto;
+      overflow-x: hidden;
       transform: translateX(100%);
       transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
     body.has-song .results.drawer-open { transform: translateX(0); }
-    body.has-song .results::-webkit-scrollbar { width: 4px; }
+    body.has-song .results .result-title {
+      -webkit-line-clamp: unset; white-space: normal; word-break: break-word;
+    }
+    body.has-song .results::-webkit-scrollbar { width: 6px; }
     body.has-song .results::-webkit-scrollbar-track { background: transparent; }
     body.has-song .results::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
@@ -1084,6 +1139,7 @@
   <div class="video-bg" id="videoBg"></div>
   <div class="video-badge" id="videoBadge"></div>
   <div class="search-debug" id="searchDebugBox"></div>
+  <div class="social-posts-ticker" id="socialPostsTicker"></div>
 
   <button class="settings-btn" id="settingsBtn" type="button" title="Settings">
     <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
@@ -1100,7 +1156,6 @@
           <button class="stg-radio" data-bg="both" type="button">YT + DM</button>
           <button class="stg-radio" data-bg="visualizer" type="button">Visualizer</button>
         </div>
-        <div class="stg-hint">YT + DM searches both; first hit wins. YouTube requires <code style="color:var(--accent)">node yt-proxy.js</code></div>
       </div>
       <hr class="stg-divider">
       <h2>Lyrics</h2>
@@ -1111,7 +1166,6 @@
           <input class="stg-input" id="lyricsOffsetMs" type="number" min="-3000" max="3000" step="100" placeholder="1500" style="width:6rem">
           <button class="stg-radio" id="lyricsOffsetPlus" type="button" style="min-width:2.5rem">+500</button>
         </div>
-        <div class="stg-hint">Add ms if lyrics appear behind the song; subtract if ahead. Default 2200.</div>
       </div>
       <hr class="stg-divider">
       <h2>Debug</h2>
@@ -1120,51 +1174,42 @@
           <input type="checkbox" id="searchDebugCb">
           <span>Show search debug log</span>
         </label>
-        <div class="stg-hint">Shows video search tier status in the top-right corner while searching.</div>
+      </div>
+      <div class="stg-group">
+        <label class="stg-check">
+          <input type="checkbox" id="showSocialPostsCb">
+          <span>Show social posts</span>
+        </label>
       </div>
       <hr class="stg-divider">
-      <h2>Recognition API</h2>
+      <h2>Music Source</h2>
       <div class="stg-group">
-        <span class="stg-label">Provider</span>
+        <span class="stg-label">Mode</span>
         <div class="stg-row">
-          <button class="stg-radio active" data-provider="acrcloud" type="button">ACRCloud</button>
-          <button class="stg-radio" data-provider="audd" type="button">AudD</button>
+          <button class="stg-radio active" data-music-source="listen" type="button">Listen (microphone)</button>
+          <button class="stg-radio" data-music-source="spotify" type="button">Spotify</button>
         </div>
       </div>
 
-      <div class="stg-fields visible" id="fieldsAcrcloud">
-        <div class="stg-group">
-          <span class="stg-label">ACRCloud Host</span>
-          <input class="stg-input" id="acrHost" type="text" placeholder="identify-us-west-2.acrcloud.com">
-          <div class="stg-hint">Your project host from the ACRCloud console</div>
+      <div class="stg-fields" id="fieldsSpotify">
+        <div class="stg-group" style="display:none">
+          <span class="stg-label">Client ID</span>
+          <input class="stg-input" id="spotifyClientId" type="text" placeholder="Your Spotify app Client ID">
         </div>
         <div class="stg-group">
-          <span class="stg-label">Access Key</span>
-          <input class="stg-input" id="acrKey" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxx">
-        </div>
-        <div class="stg-group">
-          <span class="stg-label">Access Secret</span>
-          <input class="stg-input" id="acrSecret" type="password" placeholder="xxxxxxxxxxxxxxxxxxxxxxxx">
-          <div class="stg-hint">Free tier at <a href="https://www.acrcloud.com/" target="_blank" rel="noopener">acrcloud.com</a> — 100 req/day</div>
-        </div>
-        <div class="stg-group">
-          <span class="stg-label">Usage</span>
-          <div class="stg-usage" id="acrUsage"></div>
+          <span class="stg-label">Spotify</span>
+          <div id="spotifyProfileRow" class="stg-row" style="align-items:center;gap:0.75rem;display:none">
+            <img id="spotifyProfileImg" src="" alt="" referrerpolicy="no-referrer" style="width:40px;height:40px;border-radius:50%;object-fit:cover;background:var(--bg-muted)">
+            <span id="spotifyProfileName" style="font-weight:600"></span>
+          </div>
+          <div class="stg-row" style="align-items:center;gap:0.75rem">
+            <button class="stg-radio" id="spotifySignIn" type="button">Sign In</button>
+            <button class="stg-radio" id="spotifySignOut" type="button">Sign Out</button>
+          </div>
         </div>
       </div>
 
-      <div class="stg-fields" id="fieldsAudd">
-        <div class="stg-group">
-          <span class="stg-label">AudD API Token</span>
-          <input class="stg-input" id="auddToken" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxx">
-          <div class="stg-hint">Get one at <a href="https://dashboard.audd.io/" target="_blank" rel="noopener">dashboard.audd.io</a> — ~300 req/day free</div>
-        </div>
-        <div class="stg-group">
-          <span class="stg-label">Usage</span>
-          <div class="stg-usage" id="auddUsage"></div>
-        </div>
-      </div>
-
+      <hr class="stg-divider">
       <div class="stg-actions">
         <button class="stg-cancel" id="stgCancel" type="button">Cancel</button>
         <button class="stg-save" id="stgSave" type="button">Save</button>
@@ -1191,6 +1236,9 @@
           <p class="status-text" id="statusText">Click to start listening</p>
           <p class="status-subtext" id="statusSubtext"></p>
         </div>
+      </div>
+      <div class="spotify-card" id="spotifyCard">
+        <p class="spotify-status-msg" id="spotifyStatusMsg">Sign in via Settings. Now playing syncs from any device (phone, desktop, web).</p>
       </div>
     </div>
 
@@ -1220,6 +1268,7 @@
       </div>
       <div class="np-links" id="npLinks"></div>
       <div class="lyrics-box" id="lyricsBox">
+        <div class="lyrics-links" id="lyricsLinks"></div>
         <div class="lyrics-inner" id="lyricsInner"></div>
       </div>
     </div>
@@ -1274,15 +1323,19 @@
     const GAP_MS = 2000;
 
     /* ── Settings / Provider management ── */
+    const DEFAULT_SPOTIFY_CLIENT_ID = '3f01a346ee3b4a6390dac357a028c00b';
     const DEFAULTS = {
       provider: 'acrcloud',
       bgMode: 'youtube',
+      musicSource: 'listen',
+      spotifyClientId: DEFAULT_SPOTIFY_CLIENT_ID,
       acrHost: 'identify-us-west-2.acrcloud.com',
       acrKey: '7b1bf1fbd0364b74c621f7c629885d8a',
       acrSecret: 'd3Ozm0OqTkX6E1Iyu39sft8CWlYOEsWeHWIJRQZB',
       auddToken: '15b8d3ac5946ec625264fec02d9cdb15',
       lyricsOffsetMs: 2200,
-      searchDebug: false
+      searchDebug: false,
+      showSocialPosts: false
     };
 
     const SETTINGS_KEY = 'djlive_settings2';
@@ -1291,6 +1344,7 @@
         const s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
         const merged = s ? { ...DEFAULTS, ...s } : { ...DEFAULTS };
         if (!['youtube', 'video', 'both', 'visualizer'].includes(merged.bgMode)) merged.bgMode = DEFAULTS.bgMode;
+        if (!['listen', 'spotify'].includes(merged.musicSource)) merged.musicSource = DEFAULTS.musicSource;
         return merged;
       } catch (_) { return { ...DEFAULTS }; }
     }
@@ -1333,13 +1387,12 @@
     /* Settings modal wiring */
     const settingsBtn = document.getElementById('settingsBtn');
     const settingsOverlay = document.getElementById('settingsOverlay');
-    const fieldsAcr = document.getElementById('fieldsAcrcloud');
-    const fieldsAudd = document.getElementById('fieldsAudd');
     const stgStatus = document.getElementById('stgStatus');
-    const providerBtns = settingsOverlay.querySelectorAll('[data-provider]');
     const bgBtns = settingsOverlay.querySelectorAll('[data-bg]');
-    let stgProvider = settings.provider;
+    const musicSourceBtns = settingsOverlay.querySelectorAll('[data-music-source]');
+    const fieldsSpotify = document.getElementById('fieldsSpotify');
     let stgBgMode = settings.bgMode;
+    let stgMusicSource = settings.musicSource;
 
     function renderUsageBar(containerId, provider) {
       const el = document.getElementById(containerId);
@@ -1356,44 +1409,43 @@
     }
 
     function openSettings() {
-      stgProvider = settings.provider;
       stgBgMode = settings.bgMode;
-      document.getElementById('acrHost').value = settings.acrHost;
-      document.getElementById('acrKey').value = settings.acrKey;
-      document.getElementById('acrSecret').value = settings.acrSecret;
-      document.getElementById('auddToken').value = settings.auddToken;
+      stgMusicSource = settings.musicSource;
+      document.getElementById('spotifyClientId').value = settings.spotifyClientId || DEFAULT_SPOTIFY_CLIENT_ID;
+      const redirectHint = document.getElementById('spotifyRedirectUriHint');
+      if (redirectHint) redirectHint.textContent = window.location.origin + (window.location.pathname || '/');
       const lo = settings.lyricsOffsetMs ?? DEFAULTS.lyricsOffsetMs ?? 2200;
       document.getElementById('lyricsOffsetMs').value = lo;
       document.getElementById('searchDebugCb').checked = !!settings.searchDebug;
-      providerBtns.forEach(b => {
-        b.classList.toggle('active', b.dataset.provider === stgProvider);
-      });
+      document.getElementById('showSocialPostsCb').checked = !!settings.showSocialPosts;
       bgBtns.forEach(b => {
         b.classList.toggle('active', b.dataset.bg === stgBgMode);
       });
-      fieldsAcr.classList.toggle('visible', stgProvider === 'acrcloud');
-      fieldsAudd.classList.toggle('visible', stgProvider === 'audd');
-      renderUsageBar('acrUsage', 'acrcloud');
-      renderUsageBar('auddUsage', 'audd');
+      musicSourceBtns.forEach(b => {
+        b.classList.toggle('active', b.dataset.musicSource === stgMusicSource);
+      });
+      fieldsSpotify.classList.toggle('visible', stgMusicSource === 'spotify');
+      updateSpotifyButtons(!!getSpotifyAccessToken());
+      const token = getSpotifyAccessToken();
+      if (token) fetchSpotifyProfile(token).then(p => { if (p) updateSpotifyProfileUI(p); });
       stgStatus.textContent = '';
       stgStatus.className = 'stg-status';
       settingsOverlay.classList.add('visible');
     }
     function closeSettings() { settingsOverlay.classList.remove('visible'); }
 
-    providerBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        stgProvider = btn.dataset.provider;
-        providerBtns.forEach(b => b.classList.toggle('active', b === btn));
-        fieldsAcr.classList.toggle('visible', stgProvider === 'acrcloud');
-        fieldsAudd.classList.toggle('visible', stgProvider === 'audd');
-      });
-    });
-
     bgBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         stgBgMode = btn.dataset.bg;
         bgBtns.forEach(b => b.classList.toggle('active', b === btn));
+      });
+    });
+
+    musicSourceBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        stgMusicSource = btn.dataset.musicSource;
+        musicSourceBtns.forEach(b => b.classList.toggle('active', b === btn));
+        fieldsSpotify.classList.toggle('visible', stgMusicSource === 'spotify');
       });
     });
 
@@ -1412,32 +1464,359 @@
     document.getElementById('stgCancel').addEventListener('click', closeSettings);
     settingsOverlay.addEventListener('click', e => { if (e.target === settingsOverlay) closeSettings(); });
 
+    /* ── Spotify (PKCE, no backend) ── */
+    const SPOTIFY_STORAGE_KEY = 'djlive_spotify';
+    let spotifyPollInterval = null;
+
+    function getSpotifyAccessToken() {
+      try {
+        const d = JSON.parse(localStorage.getItem(SPOTIFY_STORAGE_KEY));
+        if (d?.access_token) return d.access_token;
+      } catch (_) {}
+      return null;
+    }
+
+    function updateSpotifyProfileUI(profile) {
+      const row = document.getElementById('spotifyProfileRow');
+      const img = document.getElementById('spotifyProfileImg');
+      const name = document.getElementById('spotifyProfileName');
+      if (!row || !img || !name) return;
+      if (profile) {
+        row.style.display = 'flex';
+        const url = profile.images?.[0]?.url || '';
+        img.src = url;
+        img.alt = profile.display_name || 'Profile';
+        img.style.display = url ? 'block' : 'none';
+        img.onerror = () => { img.style.display = 'none'; };
+        name.textContent = profile.display_name || 'Signed in';
+      } else {
+        row.style.display = 'none';
+        img.src = '';
+        img.onerror = null;
+        name.textContent = '';
+      }
+    }
+
+    function updateSpotifyButtons(loggedIn) {
+      const signIn = document.getElementById('spotifySignIn');
+      const signOut = document.getElementById('spotifySignOut');
+      if (signIn) signIn.style.opacity = loggedIn ? '0.6' : '1';
+      if (signIn) signIn.disabled = loggedIn;
+      if (signOut) signOut.style.opacity = loggedIn ? '1' : '0.6';
+      if (signOut) signOut.disabled = !loggedIn;
+    }
+
+    function generateRandomString(len) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+      const arr = new Uint8Array(len);
+      crypto.getRandomValues(arr);
+      return Array.from(arr, c => chars[c % chars.length]).join('');
+    }
+
+    async function sha256(plain) {
+      const enc = new TextEncoder();
+      const buf = await crypto.subtle.digest('SHA-256', enc.encode(plain));
+      return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    function spotifyTrackToResult(track) {
+      if (!track) return null;
+      const artist = track.artists?.map(a => a.name).join(', ') || 'Unknown';
+      const title = track.name || 'Unknown';
+      const album = track.album?.name || '';
+      const dur = track.duration_ms || null;
+      const img = track.album?.images?.[0]?.url;
+      const url = track.external_urls?.spotify || (track.id ? 'https://open.spotify.com/track/' + track.id : null);
+      return {
+        title, artist, album,
+        timecode: '0:00',
+        spotify: {
+          id: track.id,
+          duration_ms: dur,
+          external_urls: url ? { spotify: url } : null,
+          album: img ? { images: [{ url: img }] } : null
+        }
+      };
+    }
+
+    function onSpotifyNowPlaying(track, progressMs) {
+      const r = spotifyTrackToResult(track);
+      if (!r) return;
+      const key = r.artist + '::' + r.title;
+      const now = performance.now();
+      if (key === curKey) {
+        curResult = r;
+        curDurationMs = r.spotify?.duration_ms || curDurationMs;
+        return;
+      }
+      if (curResult) addHistory(curResult, 'Played');
+      curKey = key;
+      curLabel = r.title + ' — ' + r.artist;
+      curTitle = r.title;
+      curArtist = r.artist;
+      curDurationMs = r.spotify?.duration_ms || null;
+      curResult = r;
+      curStartedAt = Number.isFinite(progressMs) ? now - progressMs : now;
+      addHistory(r, '', null);
+      showNowPlaying(r, 'From Spotify');
+      fetchCoverArt(r);
+      const token = getSpotifyAccessToken();
+      fetchLyrics(r.title, r.artist, r.album, curDurationMs, { spotifyTrackId: track.id, spotifyToken: token });
+      if (videoForKey !== key) searchAndPlayVideo(r.title, r.artist, 0);
+      document.body.classList.add('has-song');
+      nowPlaying.classList.add('visible');
+      startProgress();
+      startLyrics();
+    }
+
+    async function fetchSpotifyProfile(token) {
+      if (!token) return null;
+      try {
+        const res = await fetch('https://api.spotify.com/v1/me', {
+          headers: { Authorization: 'Bearer ' + token }
+        });
+        if (!res.ok) return null;
+        return await res.json();
+      } catch (_) { return null; }
+    }
+
+    async function fetchSpotifyCurrentlyPlaying(token) {
+      const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      if (res.status === 204 || (res.status === 200 && !res.headers.get('content-type')?.includes('json'))) return null;
+      if (!res.ok) throw new Error(res.status === 401 ? 'Token expired' : 'Spotify API error');
+      const data = await res.json();
+      if (!data?.item) return null;
+      return { item: data.item, progress_ms: data.progress_ms ?? 0, is_playing: !!data.is_playing };
+    }
+
+    async function fetchSpotifyLyrics(trackId, token) {
+      if (!trackId || !token) return null;
+      try {
+        const res = await fetch('https://spclient.wg.spotify.com/color-lyrics/v2/track/' + trackId + '?format=json&vocalRemoval=false', {
+          headers: { 'Authorization': 'Bearer ' + token, 'app-platform': 'WebPlayer' }
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        const lines = data?.lyrics?.lines;
+        if (!Array.isArray(lines) || !lines.length) return null;
+        return lines.map(l => ({
+          time: parseInt(l.startTimeMs, 10) || 0,
+          text: (l.words || '').trim() || '♪'
+        })).filter(l => l.text);
+      } catch (_) { return null; }
+    }
+
+    async function fetchSpotifyAudioAnalysis(trackId, token) {
+      if (!trackId || !token) return null;
+      try {
+        const res = await fetch('https://api.spotify.com/v1/audio-analysis/' + trackId, {
+          headers: { Authorization: 'Bearer ' + token }
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        const segments = data?.segments;
+        const beats = data?.beats || [];
+        const track = data?.track || {};
+        if (!Array.isArray(segments) || !segments.length) return null;
+        return { segments, beats, duration: track.duration || 0 };
+      } catch (_) { return null; }
+    }
+
+    async function fetchSpotifyAudioFeatures(trackId, token) {
+      if (!trackId || !token) return null;
+      try {
+        const res = await fetch('https://api.spotify.com/v1/audio-features/' + trackId, {
+          headers: { Authorization: 'Bearer ' + token }
+        });
+        if (!res.ok) return null;
+        return await res.json();
+      } catch (_) { return null; }
+    }
+
+    async function refreshSpotifyToken() {
+      try {
+        const d = JSON.parse(localStorage.getItem(SPOTIFY_STORAGE_KEY));
+        const clientId = (settings.spotifyClientId || DEFAULT_SPOTIFY_CLIENT_ID).trim();
+        if (!d?.refresh_token || !clientId) return null;
+        const res = await fetch('https://accounts.spotify.com/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            refresh_token: d.refresh_token,
+            client_id: clientId
+          })
+        });
+        const data = await res.json();
+        if (data.access_token) {
+          d.access_token = data.access_token;
+          if (data.expires_in) d.expires_at = Date.now() + data.expires_in * 1000;
+          localStorage.setItem(SPOTIFY_STORAGE_KEY, JSON.stringify(d));
+          return d.access_token;
+        }
+      } catch (_) {}
+      return null;
+    }
+
+    function startSpotifyPolling() {
+      if (spotifyPollInterval) clearInterval(spotifyPollInterval);
+      spotifyPollInterval = null;
+      if (settings.musicSource !== 'spotify') return;
+      let lastId = null;
+      spotifyPollInterval = setInterval(async () => {
+        try {
+          let token = getSpotifyAccessToken();
+          if (!token) return;
+          const d = JSON.parse(localStorage.getItem(SPOTIFY_STORAGE_KEY));
+          if (d?.expires_at && Date.now() > d.expires_at - 60000) {
+            token = await refreshSpotifyToken();
+          }
+          if (!token) {
+            if (lastId && curKey) { hideNowPlaying(); curKey = null; curResult = null; }
+            lastId = null;
+            return;
+          }
+          const playback = await fetchSpotifyCurrentlyPlaying(token);
+          if (!playback) {
+            if (lastId && curKey) { hideNowPlaying(); curKey = null; curResult = null; }
+            lastId = null;
+            return;
+          }
+          const { item, progress_ms, is_playing } = playback;
+          const id = item.id;
+          const prog = Math.max(0, progress_ms ?? 0);
+          if (curKey && settings.musicSource === 'spotify') {
+            curStartedAt = performance.now() - prog;
+            if (!is_playing && !isPaused) showPaused();
+            else if (is_playing && isPaused) resumeFromPause();
+          }
+          if (id !== lastId) { lastId = id; onSpotifyNowPlaying(item, prog); }
+        } catch (_) {}
+      }, 2500);
+    }
+
+    function stopSpotifyPolling() {
+      if (spotifyPollInterval) { clearInterval(spotifyPollInterval); spotifyPollInterval = null; }
+    }
+
+    document.getElementById('spotifySignIn')?.addEventListener('click', async () => {
+      const stgStatus = document.getElementById('stgStatus');
+      const clientId = (settings.spotifyClientId || DEFAULT_SPOTIFY_CLIENT_ID).trim();
+      try {
+        const verifier = generateRandomString(64);
+        const challenge = await sha256(verifier);
+        sessionStorage.setItem('spotify_code_verifier', verifier);
+        const redirectUri = window.location.origin + (window.location.pathname || '/');
+        const scope = 'user-read-playback-state user-read-currently-playing user-read-private';
+        const authUrl = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({
+          client_id: clientId,
+          response_type: 'code',
+          redirect_uri: redirectUri,
+          scope: scope,
+          code_challenge_method: 'S256',
+          code_challenge: challenge
+        });
+        if (stgStatus) { stgStatus.textContent = 'Redirecting to Spotify…'; stgStatus.className = 'stg-status'; }
+        window.location.href = authUrl;
+      } catch (e) {
+        if (stgStatus) { stgStatus.textContent = e?.message || 'Failed'; stgStatus.className = 'stg-status err'; }
+      }
+    });
+
+    document.getElementById('spotifySignOut')?.addEventListener('click', () => {
+      localStorage.removeItem(SPOTIFY_STORAGE_KEY);
+      sessionStorage.removeItem('spotify_code_verifier');
+      updateSpotifyProfileUI(null);
+      updateSpotifyButtons(false);
+      stopSpotifyPolling();
+      if (curKey && settings.musicSource === 'spotify') hideNowPlaying();
+      curKey = null;
+      curResult = null;
+      applyMusicSourceMode();
+    });
+
+    (async function handleSpotifyOAuthCallback() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      if (!code) return;
+      const verifier = sessionStorage.getItem('spotify_code_verifier');
+      const clientId = (settings.spotifyClientId || DEFAULT_SPOTIFY_CLIENT_ID).trim();
+      if (!verifier || !clientId) return;
+      try {
+        const res = await fetch('https://accounts.spotify.com/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type: 'authorization_code',
+            code: code,
+            redirect_uri: window.location.origin + (window.location.pathname || '/'),
+            client_id: clientId,
+            code_verifier: verifier
+          })
+        });
+        const data = await res.json();
+        if (data.access_token) {
+          const stored = { access_token: data.access_token, refresh_token: data.refresh_token, expires_at: Date.now() + (data.expires_in || 3600) * 1000 };
+          localStorage.setItem(SPOTIFY_STORAGE_KEY, JSON.stringify(stored));
+          sessionStorage.removeItem('spotify_code_verifier');
+          settings.musicSource = 'spotify';
+          saveSettings(settings);
+          const token = stored.access_token;
+          updateSpotifyButtons(true);
+          fetchSpotifyProfile(token).then(p => { if (p) updateSpotifyProfileUI(p); });
+          musicSourceBtns.forEach(b => { b.classList.toggle('active', b.dataset.musicSource === 'spotify'); });
+          applyMusicSourceMode();
+          startSpotifyPolling();
+        }
+      } catch (_) {}
+      history.replaceState('', '', window.location.pathname || '/');
+    })();
+
+    function applyMusicSourceMode() {
+      document.body.classList.toggle('spotify-mode', settings.musicSource === 'spotify');
+      const spotifyMsg = document.getElementById('spotifyStatusMsg');
+      if (spotifyMsg) {
+        if (settings.musicSource !== 'spotify') {
+          spotifyMsg.textContent = 'Use Listen or switch to Spotify in Settings.';
+        } else if (!getSpotifyAccessToken()) {
+          spotifyMsg.textContent = 'Sign in via Settings. Now playing syncs from any device.';
+        } else {
+          spotifyMsg.textContent = 'Now playing syncs from your Spotify.';
+          spotifyMsg.classList.add('active');
+        }
+      }
+    }
+
     document.getElementById('stgSave').addEventListener('click', () => {
-      settings.provider = stgProvider;
+      settings.provider = 'acrcloud';
+      settings.musicSource = stgMusicSource;
+      settings.spotifyClientId = (document.getElementById('spotifyClientId')?.value || '').trim() || DEFAULT_SPOTIFY_CLIENT_ID;
       const oldBg = settings.bgMode;
       settings.bgMode = stgBgMode;
-      settings.acrHost = document.getElementById('acrHost').value.trim();
-      settings.acrKey = document.getElementById('acrKey').value.trim();
-      settings.acrSecret = document.getElementById('acrSecret').value.trim();
-      settings.auddToken = document.getElementById('auddToken').value.trim();
+      settings.acrHost = DEFAULTS.acrHost;
+      settings.acrKey = DEFAULTS.acrKey;
+      settings.acrSecret = DEFAULTS.acrSecret;
       const loVal = parseInt(document.getElementById('lyricsOffsetMs').value, 10);
       settings.lyricsOffsetMs = Number.isFinite(loVal) ? Math.max(-3000, Math.min(3000, loVal)) : (DEFAULTS.lyricsOffsetMs ?? 2200);
       settings.searchDebug = !!document.getElementById('searchDebugCb').checked;
+      settings.showSocialPosts = !!document.getElementById('showSocialPostsCb').checked;
 
-      if (stgProvider === 'acrcloud' && (!settings.acrHost || !settings.acrKey || !settings.acrSecret)) {
-        stgStatus.textContent = 'Fill in all ACRCloud fields';
-        stgStatus.className = 'stg-status err';
-        return;
+      if (stgMusicSource === 'spotify') {
+        applyMusicSourceMode();
+        if (getSpotifyAccessToken()) startSpotifyPolling();
+        else stopSpotifyPolling();
+      } else {
+        stopSpotifyPolling();
+        applyMusicSourceMode();
       }
-      if (stgProvider === 'audd' && !settings.auddToken) {
-        stgStatus.textContent = 'Enter an AudD API token';
-        stgStatus.className = 'stg-status err';
-        return;
-      }
+
       saveSettings(settings);
       applySearchDebugVisibility();
+      applySocialPostsVisibility();
 
-      if (isListening && oldBg !== settings.bgMode) {
+      if (oldBg !== settings.bgMode) {
         destroyVisualizer();
         document.body.classList.remove('has-video');
         videoBg.innerHTML = '';
@@ -1446,13 +1825,14 @@
         hideVideoBadge();
         stopAmbientCycle();
         if (settings.bgMode === 'visualizer') {
-          startVisualizer();
+          if (vizAnalyserNode) startVisualizer();
+          else initVisualizerAudioOnly().catch(() => {});
         } else if (curResult) {
           searchAndPlayVideo(curResult.title, curResult.artist, 0);
         }
       }
 
-      stgStatus.textContent = 'Saved — using ' + (stgProvider === 'acrcloud' ? 'ACRCloud' : 'AudD');
+      stgStatus.textContent = 'Saved — ' + (stgMusicSource === 'spotify' ? 'Spotify' : 'Listen');
       stgStatus.className = 'stg-status ok';
       setTimeout(closeSettings, 1200);
     });
@@ -1633,6 +2013,126 @@
       }
     }
 
+    const socialPostsTicker = document.getElementById('socialPostsTicker');
+    let socialPostsForKey = null;
+    let socialPostsList = [];
+    let socialPostsIdx = 0;
+    let socialPostsRotateId = null;
+
+    function clearSocialPosts() {
+      socialPostsForKey = null;
+      socialPostsList = [];
+      socialPostsIdx = 0;
+      if (socialPostsRotateId) { clearInterval(socialPostsRotateId); socialPostsRotateId = null; }
+      if (socialPostsTicker) {
+        socialPostsTicker.innerHTML = '';
+        socialPostsTicker.classList.remove('visible');
+      }
+    }
+
+    function renderSocialPostCard(item) {
+      const isComment = item.type === 'comment';
+      const link = item.permalink ? 'https://www.reddit.com' + item.permalink : (item.url || '#');
+      const text = isComment ? (item.body || '') : (item.title || '');
+      const textEsc = escapeHtml(text.slice(0, 180) + (text.length > 180 ? '…' : ''));
+      const sub = escapeHtml(item.subreddit || '');
+      const author = escapeHtml(item.author || '');
+      const score = (item.score != null) ? (item.score >= 1000 ? (item.score / 1000).toFixed(1) + 'k' : item.score) : '0';
+      const voteSvg = '<svg class="sp-vote-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8l-6 6h4v6h4v-6h4l-6-6z"/></svg>';
+      const footer = isComment ? 'comment' : ((item.num_comments != null) ? item.num_comments + ' comments' : '');
+      return '<a class="sp-reddit-card" href="' + link + '" target="_blank" rel="noopener">' +
+        '<div class="sp-votes">' + voteSvg + '<span>' + score + '</span></div>' +
+        '<div class="sp-body">' +
+        '<div class="sp-meta"><span class="sp-sub">r/' + sub + '</span> · u/' + author + (isComment ? ' · comment' : '') + '</div>' +
+        '<div class="sp-title">' + textEsc + '</div>' +
+        (footer ? '<div class="sp-footer">' + footer + '</div>' : '') + '</div></a>';
+    }
+
+    function tickSocialPost() {
+      if (!socialPostsTicker || socialPostsList.length === 0) return;
+      const nextIdx = (socialPostsIdx + 1) % socialPostsList.length;
+      if (nextIdx === 0 && socialPostsList.length > 0) {
+        fetchSocialPosts(curArtist, curTitle);
+        return;
+      }
+      socialPostsIdx = nextIdx;
+      socialPostsTicker.classList.remove('sp-visible');
+      setTimeout(() => {
+        socialPostsTicker.innerHTML = renderSocialPostCard(socialPostsList[socialPostsIdx]);
+        requestAnimationFrame(() => socialPostsTicker.classList.add('sp-visible'));
+      }, 350);
+    }
+
+    async function fetchSocialPosts(artist, title) {
+      const key = (artist || '') + '::' + (title || '');
+      if (!key || key === '::') { clearSocialPosts(); return; }
+      if (!socialPostsTicker) return;
+
+      socialPostsForKey = key;
+      socialPostsList = [];
+      socialPostsTicker.innerHTML = '<div class="social-posts-loading">Loading Reddit...</div>';
+      socialPostsTicker.classList.add('visible');
+
+      try {
+        const q = encodeURIComponent(artist + ' ' + title);
+        const redditUrl = 'https://www.reddit.com/search.json?q=' + q + '&sort=relevance&limit=50&restrict_sr=false';
+        const url = 'https://corsproxy.io/?' + encodeURIComponent(redditUrl);
+        const res = await fetch(url);
+        if (socialPostsForKey !== key) return;
+        const data = await res.json();
+
+        const children = data?.data?.children || [];
+        const seen = new Set();
+        const posts = [];
+        for (const c of children) {
+          const d = c?.data || {};
+          const id = d.id;
+          if (!id || seen.has(id)) continue;
+          seen.add(id);
+          posts.push({ id, title: d.title, subreddit: d.subreddit, author: d.author, permalink: d.permalink, url: d.url, score: d.score, num_comments: d.num_comments });
+          if (posts.length >= 20) break;
+        }
+
+        socialPostsList = posts;
+        if (posts.length > 0) {
+          const commentIds = posts.slice(0, 5).map(p => p.id);
+          for (const postId of commentIds) {
+            if (socialPostsForKey !== key) break;
+            try {
+              const commUrl = 'https://www.reddit.com/comments/' + postId + '.json?limit=8';
+              const commRes = await fetch('https://corsproxy.io/?' + encodeURIComponent(commUrl));
+              if (!commRes.ok || socialPostsForKey !== key) break;
+              const commData = await commRes.json();
+              const commList = commData?.[1]?.data?.children || [];
+              for (const cc of commList) {
+                const cd = cc?.data || {};
+                if (cd.kind === 't1' && cd.body && cd.id && !seen.has('c-' + cd.id)) {
+                  seen.add('c-' + cd.id);
+                  socialPostsList.push({ type: 'comment', id: 'c-' + cd.id, body: cd.body, subreddit: cd.subreddit || posts[0].subreddit, author: cd.author, permalink: cd.permalink, score: cd.score });
+                  if (socialPostsList.length >= 40) break;
+                }
+              }
+            } catch (_) {}
+          }
+        }
+
+        if (socialPostsList.length === 0) {
+          socialPostsTicker.innerHTML = '<div class="social-posts-loading">No posts found</div>';
+          return;
+        }
+
+        if (socialPostsRotateId) clearInterval(socialPostsRotateId);
+        socialPostsIdx = 0;
+        socialPostsTicker.innerHTML = renderSocialPostCard(socialPostsList[0]);
+        socialPostsTicker.classList.add('sp-visible');
+        socialPostsRotateId = setInterval(tickSocialPost, 5000);
+      } catch (_) {
+        if (socialPostsForKey === key) {
+          socialPostsTicker.innerHTML = '<div class="social-posts-loading">Could not load posts</div>';
+        }
+      }
+    }
+
     function showNowPlaying(result, badge) {
       document.body.classList.add('has-song');
       nowPlaying.classList.add('visible');
@@ -1646,6 +2146,54 @@
       npFill.style.width = '0%';
       npElapsed.textContent = '0:00';
       npRemaining.textContent = curDurationMs > 0 ? fmtPos(curDurationMs) : '--:--';
+      if (settings.showSocialPosts) fetchSocialPosts(result.artist, result.title);
+      else clearSocialPosts();
+    }
+
+    function pauseBackgroundVideo() {
+      try { if (_ytPlayer?.pauseVideo) _ytPlayer.pauseVideo(); } catch (_) {}
+      const ytIframe = _ytPlayer?.getIframe?.();
+      if (ytIframe?.contentWindow) {
+        try { ytIframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', 'https://www.youtube.com'); } catch (_) {}
+      }
+      const vb = document.getElementById('videoBg');
+      const iframe = vb?.querySelector?.('iframe');
+      if (iframe?.contentWindow && iframe !== ytIframe) {
+        try {
+          const src = (iframe.getAttribute?.('src') || iframe.src || '').toLowerCase();
+          if (src.includes('youtube.com') || src.includes('youtu.be')) {
+            iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', 'https://www.youtube.com');
+          } else if (src.includes('dailymotion')) {
+            iframe.contentWindow.postMessage(JSON.stringify({ command: 'pause' }), '*');
+          } else if (!src) {
+            iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', 'https://www.youtube.com');
+            iframe.contentWindow.postMessage(JSON.stringify({ command: 'pause' }), '*');
+          }
+        } catch (_) {}
+      }
+      if (vizAnimId) { cancelAnimationFrame(vizAnimId); vizAnimId = null; }
+      vb?.classList?.add('video-paused');
+    }
+    function playBackgroundVideo() {
+      try { if (_ytPlayer?.playVideo) _ytPlayer.playVideo(); } catch (_) {}
+      const ytIframe = _ytPlayer?.getIframe?.();
+      if (ytIframe?.contentWindow) {
+        try { ytIframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', 'https://www.youtube.com'); } catch (_) {}
+      }
+      const vb = document.getElementById('videoBg');
+      vb?.classList?.remove('video-paused');
+      const iframe = vb?.querySelector?.('iframe');
+      if (iframe?.contentWindow) {
+        try {
+          const src = (iframe.src || '').toLowerCase();
+          if (src.includes('youtube.com') || src.includes('youtu.be')) {
+            iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+          } else if (src.includes('dailymotion')) {
+            iframe.contentWindow.postMessage(JSON.stringify({ command: 'play' }), '*');
+          }
+        } catch (_) {}
+      }
+      if (vizRenderer && vizScene && vizCamera && !vizAnimId) animateViz();
     }
 
     function showPaused() {
@@ -1654,6 +2202,8 @@
         pausedAtElapsed = curStartedAt ? Math.max(0, performance.now() - curStartedAt) : 0;
         stopProgress();
         stopLyrics();
+        pauseBackgroundVideo();
+        document.body.classList.add('video-paused');
       }
       nowPlaying.classList.add('paused');
       flashNpBadge('Song Paused?');
@@ -1662,20 +2212,23 @@
     function resumeFromPause() {
       if (isPaused) {
         isPaused = false;
+        document.body.classList.remove('video-paused');
         curStartedAt = performance.now() - pausedAtElapsed;
         nowPlaying.classList.remove('paused');
         startProgress();
         startLyrics();
+        playBackgroundVideo();
       }
     }
 
     function hideNowPlaying() {
-      document.body.classList.remove('has-song');
+      document.body.classList.remove('has-song', 'video-paused');
       nowPlaying.classList.remove('visible', 'paused');
       isPaused = false;
       clearTimeout(npBadgeTimer);
       npHeader.classList.remove('np-hidden');
       clearLyrics();
+      clearSocialPosts();
       hideVideo();
       closeDrawer();
       renderHistoryLists();
@@ -1915,7 +2468,13 @@
 
     /* ── Lyrics (LRCLIB) ── */
     const lyricsBox = document.getElementById('lyricsBox');
+    const lyricsLinks = document.getElementById('lyricsLinks');
     const lyricsInner = document.getElementById('lyricsInner');
+
+    function updateLyricsLinks() {
+      if (!lyricsLinks) return;
+      lyricsLinks.innerHTML = '';
+    }
     let syncedLines = [];
     let lyricsForKey = null;
 
@@ -1957,23 +2516,26 @@
         if (elapsed >= syncedLines[i].time) { activeIdx = i; break; }
       }
       const els = lyricsInner.children;
-      for (let i = 0; i < els.length; i++) {
-        els[i].classList.toggle('active', i === activeIdx);
-        els[i].classList.toggle('past', i < activeIdx);
-      }
       if (activeIdx !== lyricsLastActiveIdx && activeIdx >= 0 && els[activeIdx]) {
-        lyricsLastActiveIdx = activeIdx;
         const container = lyricsBox;
         const lineEl = els[activeIdx];
         lyricsScrollTarget = Math.max(0, lineEl.offsetTop - container.offsetHeight / 2 + lineEl.offsetHeight / 2);
+        lyricsLastActiveIdx = activeIdx;
+      }
+      for (let i = 0; i < els.length; i++) {
+        const wantActive = i === activeIdx;
+        const wantPast = i < activeIdx;
+        const el = els[i];
+        if (el.classList.contains('active') !== wantActive) el.classList.toggle('active', wantActive);
+        if (el.classList.contains('past') !== wantPast) el.classList.toggle('past', wantPast);
       }
     }
 
     function lyricsLoop() {
       tickLyrics();
-      lyricsScrollCurrent += (lyricsScrollTarget - lyricsScrollCurrent) * 0.35;
+      lyricsScrollCurrent += (lyricsScrollTarget - lyricsScrollCurrent) * 0.3;
       if (Math.abs(lyricsScrollTarget - lyricsScrollCurrent) < 1) lyricsScrollCurrent = lyricsScrollTarget;
-      lyricsInner.style.transform = 'translateY(' + (-lyricsScrollCurrent) + 'px)';
+      lyricsInner.style.transform = 'translateY(' + Math.round(-lyricsScrollCurrent) + 'px)';
       lyricsAnimId = requestAnimationFrame(lyricsLoop);
     }
 
@@ -1995,13 +2557,14 @@
       stopLyrics();
       syncedLines = [];
       lyricsForKey = null;
+      if (lyricsLinks) lyricsLinks.innerHTML = '';
       lyricsInner.innerHTML = '';
       lyricsInner.style.transform = '';
       lyricsBox.style.overflow = '';
       lyricsBox.classList.remove('visible');
     }
 
-    async function fetchLyrics(title, artist, album, durationMs) {
+    async function fetchLyrics(title, artist, album, durationMs, opts) {
       const key = artist + '::' + title;
       if (lyricsForKey === key) return;
       stopLyrics();
@@ -2019,6 +2582,7 @@
       function showSynced(lines) {
         syncedLines = lines;
         renderLyricsLines();
+        updateLyricsLinks();
         lyricsBox.classList.add('visible');
         startLyrics();
       }
@@ -2030,11 +2594,14 @@
           el.textContent = line || '♪';
           lyricsInner.appendChild(el);
         }
+        updateLyricsLinks();
         lyricsBox.classList.add('visible');
         lyricsBox.style.overflow = 'auto';
       }
 
       try {
+        const spotifyOpts = opts || {};
+        /* Spotify color-lyrics API returns 403 — use LRCLIB only */
         const searchRes = await fetch('https://lrclib.net/api/search?' + new URLSearchParams({
           track_name: title, artist_name: artist
         }));
@@ -2086,7 +2653,12 @@
         searchDebugBox.classList.toggle('debug-visible', !!settings.searchDebug);
       }
     }
+    function applySocialPostsVisibility() {
+      if (settings.showSocialPosts && curResult) fetchSocialPosts(curArtist, curTitle);
+      else clearSocialPosts();
+    }
     applySearchDebugVisibility();
+    applySocialPostsVisibility();
     function showSearchStatus(tierLabel, platform, status, detail) {
       const plat = platform === 'yt' ? 'YouTube' : platform === 'dm' ? 'Dailymotion' : platform;
       const line = plat ? (tierLabel + ' → ' + plat + ': ' + status) : (tierLabel + ': ' + status);
@@ -2635,6 +3207,7 @@
     let vizRenderer = null, vizScene = null, vizCamera = null, vizAnimId = null;
     let vizSphere = null, vizInner = null, vizBars = [], vizParticles = null;
     let vizFreqData = null, vizTimeData = null;
+    let vizSpotifyData = null;
 
     function startVisualizer() {
       if (vizRenderer) return;
@@ -2740,6 +3313,12 @@
       if (vizAnalyserNode) {
         vizAnalyserNode.getByteFrequencyData(vizFreqData);
         vizAnalyserNode.getByteTimeDomainData(vizTimeData);
+      } else if (vizFreqData) {
+        const t = performance.now() * 0.001;
+        const base = 25 + 15 * Math.sin(t * 0.5);
+        for (let i = 0; i < vizFreqData.length; i++) {
+          vizFreqData[i] = Math.min(255, Math.max(0, base + 10 * Math.sin(t * 2 + i * 0.1)));
+        }
       }
 
       let bass = 0, mid = 0, treble = 0, energy = 0;
@@ -2844,6 +3423,37 @@
       vizSphere = null; vizInner = null;
       vizBars = []; vizParticles = null;
       vizFreqData = null; vizTimeData = null;
+      vizSpotifyData = null;
+      if (vizAnalyserNode && !isListening) {
+        if (vizAudioCtx) { vizAudioCtx.close().catch(() => {}); vizAudioCtx = null; }
+        vizAnalyserNode = null;
+        if (audioStream) { audioStream.getTracks().forEach(t => t.stop()); audioStream = null; }
+      }
+    }
+
+    async function initVisualizerAudioOnly() {
+      if (vizAnalyserNode) { startVisualizer(); return; }
+      try {
+        audioStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        });
+      } catch (e1) {
+        try {
+          audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (e2) {
+          showError(e2?.name === 'NotAllowedError'
+            ? 'Visualizer needs microphone access. Allow it in browser settings.'
+            : (e2?.message || 'Could not access the microphone.'));
+          return;
+        }
+      }
+      vizAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const micSource = vizAudioCtx.createMediaStreamSource(audioStream);
+      vizAnalyserNode = vizAudioCtx.createAnalyser();
+      vizAnalyserNode.fftSize = 512;
+      vizAnalyserNode.smoothingTimeConstant = 0.82;
+      micSource.connect(vizAnalyserNode);
+      startVisualizer();
     }
 
     /* ── ACRCloud HMAC-SHA1 signing (Web Crypto) ── */
@@ -2962,8 +3572,8 @@
         let audioBlob = blob;
         try { audioBlob = await blobToWav(blob); } catch(_) {}
 
-        if (settings.provider === 'acrcloud' && (!settings.acrHost || !settings.acrKey || !settings.acrSecret)) {
-          showError('ACRCloud not configured — open Settings (gear icon) to enter your credentials.');
+        if (!settings.acrHost || !settings.acrKey || !settings.acrSecret) {
+          showError('Recognition service unavailable.');
           isIdentifying = false;
           phase('Listening for music...', 'Configure ACRCloud in settings', true, false);
           return;
@@ -3071,6 +3681,11 @@
     /* ── Start / Stop ── */
     async function startListening() {
       showError('');
+      if (vizAnalyserNode && !isListening) {
+        if (vizAudioCtx) { vizAudioCtx.close().catch(() => {}); vizAudioCtx = null; }
+        vizAnalyserNode = null;
+        if (audioStream) { audioStream.getTracks().forEach(t => t.stop()); audioStream = null; }
+      }
       try {
         audioStream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
@@ -3146,7 +3761,12 @@
     });
     drawerOverlay.addEventListener('click', closeDrawer);
 
+    applyMusicSourceMode();
+    if (settings.musicSource === 'spotify' && getSpotifyAccessToken()) startSpotifyPolling();
+
     loadHistory();
+
+    if (settings.bgMode === 'visualizer') initVisualizerAudioOnly().catch(() => {});
 
     console.log('[DJ Live] v12 loaded — YouTube + Dailymotion + Visualizer backgrounds');
   </script>
