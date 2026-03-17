@@ -1333,6 +1333,11 @@
       <hr class="stg-divider">
       <h2>Debug</h2>
       <div class="stg-group">
+        <span class="stg-label">API server URL (for static deploy)</span>
+        <input class="stg-input" id="apiBaseUrl" type="text" placeholder="https://your-server.onrender.com" style="width:100%">
+        <p class="stg-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem">When deploying to GitHub Pages, deploy server.js to Render/Railway/Vercel and enter its URL here. Leave empty for localhost or CORS proxies.</p>
+      </div>
+      <div class="stg-group">
         <label class="stg-check">
           <input type="checkbox" id="searchDebugCb">
           <span>Show search debug log</span>
@@ -1507,10 +1512,17 @@
       fallbackPlaylistShuffle: true,
       randomLiveStart: true,
       tierOrder: [2, 0, 1, 3],
-      tierEnabled: [true, true, true, false]
+      tierEnabled: [true, true, true, false],
+      apiBaseUrl: ''
     };
 
     const SETTINGS_KEY = 'djlive_settings2';
+    function apiUrl(path) {
+      const base = (settings.apiBaseUrl || '').trim().replace(/\/$/, '');
+      return base ? (base + (path.startsWith('/') ? path : '/' + path)) : path;
+    }
+
+    const SETTINGS_KEY2 = SETTINGS_KEY;
     function loadSettings() {
       try {
         const s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
@@ -1646,6 +1658,8 @@
       }
       const lo = settings.lyricsOffsetMs ?? DEFAULTS.lyricsOffsetMs ?? 0;
       document.getElementById('lyricsOffsetMs').value = lo;
+      const apiBaseEl = document.getElementById('apiBaseUrl');
+      if (apiBaseEl) apiBaseEl.value = (settings.apiBaseUrl || '').trim();
       document.getElementById('searchDebugCb').checked = !!settings.searchDebug;
       document.getElementById('deepSearchCb').checked = !!settings.deepSearch;
       document.getElementById('randomLiveStartCb').checked = !!settings.randomLiveStart;
@@ -2101,6 +2115,7 @@
       settings.fallbackPlaylistSource = stgFallbackPlaylistSource || 'djlive';
       settings.fallbackPlaylistUrl = (settings.fallbackPlaylistSource === 'custom') ? customUrl : '';
       settings.fallbackPlaylistShuffle = !!document.getElementById('fallbackPlaylistShuffleCb')?.checked;
+      settings.apiBaseUrl = (document.getElementById('apiBaseUrl')?.value || '').trim().replace(/\/$/, '');
       const tierList = document.getElementById('stgTierOrderList');
       if (tierList) {
         const rows = tierList.querySelectorAll('.stg-tier-row');
@@ -3614,29 +3629,57 @@
       }, tierLabel);
     }
 
-    /* ── YouTube search: server proxy first (avoids 403 on deployed), then CORS proxies ── */
-    const CORS_PROXY = 'https://corsproxy.io/?url=';
+    /* ── YouTube search: CORS first on static hosts (GitHub Pages etc.); server proxy when Node running ── */
+    const YT_INITIAL_MARKER = 'var ytInitialData = ';
+    /* allorigins.win often blocks 127.0.0.1 (520/CORS) — try others first */
     const CORS_PROXIES = [
-      (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
       (u) => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
-      (u) => 'https://corsproxy.org/?url=' + encodeURIComponent(u)
+      (u) => 'https://corsproxy.org/?url=' + encodeURIComponent(u),
+      (u) => 'https://thingproxy.freeboard.io/fetch/' + encodeURIComponent(u),
+      (u) => 'https://corsproxy-8uo5.onrender.com/?url=' + encodeURIComponent(u),
+      (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+      (u) => 'https://api.allorigins.win/get?url=' + encodeURIComponent(u)
     ];
     let ytSearchOk = null;
 
-    /** Fetch YouTube HTML — server proxy first (reliable when Node server running), then CORS proxies as fallback */
+    /** Fetch YouTube HTML — try CORS first unless we're on Node server (port 3000) or apiBaseUrl is set */
     async function fetchYtHtml(url, opts) {
       const o = { ...opts, signal: opts?.signal || AbortSignal.timeout(10000) };
-      try {
-        const res = await fetch('/api/proxy?url=' + encodeURIComponent(url), o);
-        if (res.ok) return await res.text();
-      } catch (_) { /* server unavailable — fall through to CORS proxies */ }
-      for (const toProxy of CORS_PROXIES) {
-        try {
-          const res = await fetch(toProxy(url), o);
-          if (res.ok) return await res.text();
-        } catch (_) { /* try next */ }
+      const port = parseInt(window.location.port || '80', 10);
+      const hasNodeServer = !!(settings.apiBaseUrl || '').trim() || (port === 3000 && /localhost|127\.0\.0\.1/i.test(window.location.hostname));
+      const isValidYtHtml = (text) => text && typeof text === 'string' && text.includes(YT_INITIAL_MARKER);
+      const tryServer = () => {
+        const proxyPath = '/api/proxy?url=' + encodeURIComponent(url);
+        return fetch(apiUrl(proxyPath), o).then(r => r.ok ? r.text() : null);
+      };
+      const tryCors = async () => {
+        for (let i = 0; i < CORS_PROXIES.length; i++) {
+          const toProxy = CORS_PROXIES[i];
+          const isAllOriginsGet = toProxy(url).includes('allorigins.win/get');
+          try {
+            const res = await fetch(toProxy(url), o);
+            if (!res.ok) continue;
+            const text = await res.text();
+            let html = text;
+            if (isAllOriginsGet) {
+              try {
+                const j = JSON.parse(text);
+                html = (j && j.contents) || '';
+              } catch (_) { html = ''; }
+            }
+            if (isValidYtHtml(html)) return html;
+          } catch (_) {}
+        }
+        return null;
+      };
+      if (hasNodeServer) {
+        const html = await tryServer();
+        if (html) return html;
+        return await tryCors();
       }
-      return null;
+      const html = await tryCors();
+      if (html) return html;
+      return await tryServer();
     }
 
     function parseYtInitialData(html) {
@@ -3876,14 +3919,14 @@
       try {
         if ((window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
           const params = isChannelId ? { channelId: clean } : { handle: clean };
-          const apiUrl = '/api/youtube/channel?' + new URLSearchParams(params);
-          const apiRes = await fetch(apiUrl, { signal: AbortSignal.timeout(10000) });
+          const channelApi = apiUrl('/api/youtube/channel?' + new URLSearchParams(params));
+          const apiRes = await fetch(channelApi, { signal: AbortSignal.timeout(10000) });
           if (videoForKey !== key) return [];
           if (apiRes.ok) {
             const parsed = await apiRes.json();
             const videos = Array.isArray(parsed) ? parsed.map(v => ({ ...v, duration: v.duration || 0 })) : [];
             if (videoForKey === key && searchDebugBox && settings.searchDebug) {
-              appendDebugLog({ type: 'channel-videos-fetch', url: apiUrl, status: apiRes.status, videoCount: videos.length });
+              appendDebugLog({ type: 'channel-videos-fetch', url: channelApi, status: apiRes.status, videoCount: videos.length });
             }
             if (videos.length) return videos.slice(0, 100);
           }
