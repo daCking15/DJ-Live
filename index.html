@@ -1326,7 +1326,7 @@
         <span class="stg-label">Sync offset (ms)</span>
         <div class="stg-row" style="align-items:center;gap:0.75rem">
           <button class="stg-radio" id="lyricsOffsetMinus" type="button" style="min-width:2.5rem">−500</button>
-          <input class="stg-input" id="lyricsOffsetMs" type="number" min="-3000" max="3000" step="100" placeholder="1500" style="width:6rem">
+          <input class="stg-input" id="lyricsOffsetMs" type="number" min="-3000" max="3000" step="100" placeholder="0" style="width:6rem">
           <button class="stg-radio" id="lyricsOffsetPlus" type="button" style="min-width:2.5rem">+500</button>
         </div>
       </div>
@@ -1497,16 +1497,16 @@
       acrKey: '7b1bf1fbd0364b74c621f7c629885d8a',
       acrSecret: 'd3Ozm0OqTkX6E1Iyu39sft8CWlYOEsWeHWIJRQZB',
       auddToken: '15b8d3ac5946ec625264fec02d9cdb15',
-      lyricsOffsetMs: 2200,
+      lyricsOffsetMs: 0,
       searchDebug: false,
       deepSearch: false,
       showSocialPosts: false,
       ambientDefault: 'youtube',
       fallbackPlaylistSource: 'djlive',
       fallbackPlaylistUrl: '',
-      fallbackPlaylistShuffle: false,
-      randomLiveStart: false,
-      tierOrder: [0, 1, 2, 3],
+      fallbackPlaylistShuffle: true,
+      randomLiveStart: true,
+      tierOrder: [2, 0, 1, 3],
       tierEnabled: [true, true, true, false]
     };
 
@@ -1644,7 +1644,7 @@
         const span = redirectHint.querySelector('span');
         if (span) span.textContent = window.location.origin + (window.location.pathname || '/');
       }
-      const lo = settings.lyricsOffsetMs ?? DEFAULTS.lyricsOffsetMs ?? 2200;
+      const lo = settings.lyricsOffsetMs ?? DEFAULTS.lyricsOffsetMs ?? 0;
       document.getElementById('lyricsOffsetMs').value = lo;
       document.getElementById('searchDebugCb').checked = !!settings.searchDebug;
       document.getElementById('deepSearchCb').checked = !!settings.deepSearch;
@@ -2084,7 +2084,7 @@
       settings.acrKey = DEFAULTS.acrKey;
       settings.acrSecret = DEFAULTS.acrSecret;
       const loVal = parseInt(document.getElementById('lyricsOffsetMs').value, 10);
-      settings.lyricsOffsetMs = Number.isFinite(loVal) ? Math.max(-3000, Math.min(3000, loVal)) : (DEFAULTS.lyricsOffsetMs ?? 2200);
+      settings.lyricsOffsetMs = Number.isFinite(loVal) ? Math.max(-3000, Math.min(3000, loVal)) : (DEFAULTS.lyricsOffsetMs ?? 0);
       settings.searchDebug = !!document.getElementById('searchDebugCb').checked;
       settings.deepSearch = !!document.getElementById('deepSearchCb').checked;
       settings.randomLiveStart = !!document.getElementById('randomLiveStartCb').checked;
@@ -2828,7 +2828,7 @@
 
     function tickLyrics() {
       if (!curStartedAt || !syncedLines.length) return;
-      const offset = settings.lyricsOffsetMs ?? 2200;
+      const offset = settings.lyricsOffsetMs ?? DEFAULTS.lyricsOffsetMs ?? 0;
       const elapsed = (isPaused ? pausedAtElapsed : Math.max(0, performance.now() - curStartedAt)) + offset;
       let activeIdx = -1;
       for (let i = syncedLines.length - 1; i >= 0; i--) {
@@ -2988,7 +2988,8 @@
       if (opts.type === 'unembeddable') {
         const title = (opts.title || '').slice(0, 50) + ((opts.title || '').length > 50 ? '…' : '');
         const nextNote = opts.idx < opts.total ? ' <span class="db-trying">→ next</span>' : '';
-        div.innerHTML = '  <span class="db-fail">✗</span> [' + opts.idx + '/' + opts.total + '] <span class="db-query">' + esc(title) + '</span> — failed' + nextNote;
+        const reasonNote = opts.reason ? ' <span class="db-status">(' + esc(opts.reason) + ')</span>' : '';
+        div.innerHTML = '  <span class="db-fail">✗</span> [' + opts.idx + '/' + opts.total + '] <span class="db-query">' + esc(title) + '</span> — failed' + reasonNote + nextNote;
       } else if (opts.type === 'playlist-playing') {
         const title = (opts.title || '').slice(0, 55) + ((opts.title || '').length > 55 ? '…' : '');
         div.innerHTML = '  <span class="db-ok">✓ Playlist: playing</span> <span class="db-query">' + esc(title) + '</span>' + (opts.author ? ' <span class="db-status">(' + esc(opts.author) + ')</span>' : '');
@@ -3231,7 +3232,7 @@
             setTimeout(() => {
               if (!played && _onYtError) {
                 console.warn('[Video] YouTube no play after 6s, treating as failed: ' + videoId);
-                const cb = _onYtError; _onYtError = null; cb();
+                const cb = _onYtError; _onYtError = null; cb('timeout (no play after 6s)');
               }
             }, 6000);
           },
@@ -3252,8 +3253,10 @@
             }
           },
           onError: function(e) {
-            console.warn('[Video] YouTube error code ' + e.data + ' for ' + videoId);
-            if (_onYtError) { const cb = _onYtError; _onYtError = null; cb(); }
+            const code = e.data;
+            const reason = code === 2 ? 'invalid parameter' : code === 5 ? 'HTML5 player error' : code === 100 ? 'video not found or private' : (code === 101 || code === 150) ? 'embedding not allowed' : 'error ' + code;
+            console.warn('[Video] YouTube error code ' + code + ' for ' + videoId + ': ' + reason);
+            if (_onYtError) { const cb = _onYtError; _onYtError = null; cb(reason); }
           }
         }
       };
@@ -3262,7 +3265,7 @@
         _ytPlayer = new YT.Player(div.id, playerConfig);
       } catch (err) {
         console.warn('[Video] YouTube player init failed:', err?.message);
-        if (onUnavailable) onUnavailable();
+        if (onUnavailable) onUnavailable('init failed: ' + (err?.message || 'unknown'));
       }
     }
 
@@ -3601,9 +3604,9 @@
       const videoData = { platform: 'youtube', id: v.id, title: v.title, channel: v['owner.screenname'] || '', url: 'https://www.youtube.com/watch?v=' + v.id, thumb: 'https://img.youtube.com/vi/' + v.id + '/hqdefault.jpg' };
       currentSongVideo = { key, data: videoData };
       console.log('[Video] YouTube trying ' + (idx + 1) + '/' + candidates.length + ': ' + v.title);
-      embedYouTube(v.id, actualStart, v.title, v['owner.screenname'], () => {
-        console.log('[Video] Unavailable, trying next...');
-        appendDebugLog({ type: 'unembeddable', title: v.title, id: v.id, idx: idx + 1, total: candidates.length });
+      embedYouTube(v.id, actualStart, v.title, v['owner.screenname'], (reason) => {
+        console.log('[Video] Unavailable' + (reason ? ': ' + reason : '') + ', trying next...');
+        appendDebugLog({ type: 'unembeddable', title: v.title, id: v.id, idx: idx + 1, total: candidates.length, reason });
         tryEmbedYt(candidates, idx + 1, startSec, key, tierLabel, onAllFailed);
       }, () => {
         appendDebugLog({ type: 'loaded', title: v.title, idx: idx + 1, total: candidates.length });
@@ -3611,7 +3614,7 @@
       }, tierLabel);
     }
 
-    /* ── YouTube search: client-side via CORS proxy — no Node/server needed ── */
+    /* ── YouTube search: server proxy first (avoids 403 on deployed), then CORS proxies ── */
     const CORS_PROXY = 'https://corsproxy.io/?url=';
     const CORS_PROXIES = [
       (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
@@ -3619,6 +3622,22 @@
       (u) => 'https://corsproxy.org/?url=' + encodeURIComponent(u)
     ];
     let ytSearchOk = null;
+
+    /** Fetch YouTube HTML — server proxy first (reliable when Node server running), then CORS proxies as fallback */
+    async function fetchYtHtml(url, opts) {
+      const o = { ...opts, signal: opts?.signal || AbortSignal.timeout(10000) };
+      try {
+        const res = await fetch('/api/proxy?url=' + encodeURIComponent(url), o);
+        if (res.ok) return await res.text();
+      } catch (_) { /* server unavailable — fall through to CORS proxies */ }
+      for (const toProxy of CORS_PROXIES) {
+        try {
+          const res = await fetch(toProxy(url), o);
+          if (res.ok) return await res.text();
+        } catch (_) { /* try next */ }
+      }
+      return null;
+    }
 
     function parseYtInitialData(html) {
       const start = html.indexOf('var ytInitialData = ');
@@ -3659,7 +3678,8 @@
         const cr = obj.channelRenderer;
         const title = getFullTextFromRuns(cr.title) || '';
         const handle = cr.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl?.replace(/^\/@?/, '') || '';
-        if (title || cr.channelId) out.push({ title, handle, channelId: cr.channelId || '' });
+        const channelId = cr.channelId || cr.navigationEndpoint?.browseEndpoint?.browseId || '';
+        if (title || channelId) out.push({ title, handle, channelId: /^UC[\w-]{20,}$/.test(channelId) ? channelId : '' });
         return;
       }
       if (Array.isArray(obj)) { for (const x of obj) extractChannelsFromYtData(x, out); return; }
@@ -3672,13 +3692,8 @@
         const ambiguous = !artist || artist.length < 12 || !/\s/.test(artist);
         const searchQ = (title && ambiguous) ? (artist + ' ' + title) : artist;
         const target = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(searchQ);
-        const proxyUrl = CORS_PROXY + encodeURIComponent(target);
-        const res = await fetch(proxyUrl, {
-          signal: AbortSignal.timeout(8000),
-          headers: { 'Accept': 'text/html' }
-        });
-        if (videoForKey !== key || !res.ok) return { found: false, name: '', handle: '', channelId: '', channelsSeen: [] };
-        const html = await res.text();
+        const html = await fetchYtHtml(target, { signal: AbortSignal.timeout(8000), headers: { 'Accept': 'text/html' } });
+        if (videoForKey !== key || !html) return { found: false, name: '', handle: '', channelId: '', channelsSeen: [] };
         const data = parseYtInitialData(html);
         if (!data) return { found: false, name: '', handle: '', channelId: '', channelsSeen: [] };
         const channels = [];
@@ -3722,14 +3737,9 @@
     async function ytSearch(query, key) {
       try {
         const target = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query);
-        const proxyUrl = CORS_PROXY + encodeURIComponent(target);
-        const res = await fetch(proxyUrl, {
-          signal: AbortSignal.timeout(10000),
-          headers: { 'Accept': 'text/html' }
-        });
+        const html = await fetchYtHtml(target, { signal: AbortSignal.timeout(10000), headers: { 'Accept': 'text/html' } });
         if (videoForKey !== key) return null;
-        if (!res.ok) return null;
-        const html = await res.text();
+        if (!html) return null;
         const data = parseYtInitialData(html);
         if (!data) return null;
         const sections = data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents ?? [];
@@ -3847,23 +3857,13 @@
     }
 
     async function fetchAndExtractVideos(pageUrl, key) {
-      for (const toProxyUrl of CORS_PROXIES) {
-        if (videoForKey !== key) return null;
-        try {
-          const proxyUrl = toProxyUrl(pageUrl);
-          const res = await fetch(proxyUrl, {
-            signal: AbortSignal.timeout(10000),
-            headers: { 'Accept': 'text/html', 'Accept-Language': 'en' }
-          });
-          if (videoForKey !== key || !res.ok) continue;
-          const html = await res.text();
-          const data = parseYtInitialData(html);
-          if (!data) continue;
-          const videos = extractChannelVideosFromYtData(data);
-          return { data, videos };
-        } catch (_) { /* try next proxy */ }
-      }
-      return null;
+      const opts = { signal: AbortSignal.timeout(10000), headers: { 'Accept': 'text/html', 'Accept-Language': 'en' } };
+      const html = await fetchYtHtml(pageUrl, opts);
+      if (videoForKey !== key || !html) return null;
+      const data = parseYtInitialData(html);
+      if (!data) return null;
+      const videos = extractChannelVideosFromYtData(data);
+      return videos.length ? { data, videos } : null;
     }
 
     async function ytChannelVideos(handleOrChannelId, key) {

@@ -189,6 +189,25 @@ function getChannelIdFromPageData(data) {
   return (id && /^UC[\w-]{20,}$/.test(id)) ? id : '';
 }
 
+const YT_OPTS = { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', 'Accept': 'text/html', 'Accept-Language': 'en' } };
+
+function fetchYtWithRedirects(url, depth, cb) {
+  if (depth > 5) return cb(null, '');
+  const lib = url.startsWith('https') ? require('https') : require('http');
+  lib.get(url, YT_OPTS, (res) => {
+    const code = res.statusCode || 0;
+    if (code >= 301 && code <= 308 && res.headers.location) {
+      const loc = res.headers.location;
+      const next = loc.startsWith('http') ? loc : (new URL(loc, url)).href;
+      if (/^https:\/\/(www\.)?youtube\.com\//.test(next))
+        return fetchYtWithRedirects(next, depth + 1, cb);
+    }
+    let body = '';
+    res.on('data', c => (body += c));
+    res.on('end', () => cb(null, body));
+  }).on('error', (err) => cb(err, ''));
+}
+
 function handleYouTubeChannel(req, res, handleOrChannelId) {
   const clean = (handleOrChannelId || '').replace(/^@/, '').trim();
   if (!clean) {
@@ -199,13 +218,13 @@ function handleYouTubeChannel(req, res, handleOrChannelId) {
   const url = isChannelId
     ? 'https://www.youtube.com/channel/' + clean + '/videos'
     : 'https://www.youtube.com/@' + clean + '/videos';
-  const opts = { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', 'Accept-Language': 'en' } };
-  require('https').get(url, opts, (ytRes) => {
-    let body = '';
-    ytRes.on('data', c => (body += c));
-    ytRes.on('end', () => {
-      try {
-        const data = parseYtInitialData(body);
+  fetchYtWithRedirects(url, 0, (err, body) => {
+    if (err) {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      return res.end('[]');
+    }
+    try {
+      const data = parseYtInitialData(body);
         let videos = data ? extractChannelVideos(data) : [];
         if (videos.length === 0 && data) {
           let channelId = isChannelId ? clean : getChannelIdFromPageData(data);
@@ -216,7 +235,7 @@ function handleYouTubeChannel(req, res, handleOrChannelId) {
               return;
             }
             const playlistUrl = 'https://www.youtube.com/playlist?list=UU' + cid.slice(2);
-            require('https').get(playlistUrl, opts, (plRes) => {
+            require('https').get(playlistUrl, YT_OPTS, (plRes) => {
               let plBody = '';
               plRes.on('data', c => (plBody += c));
               plRes.on('end', () => {
@@ -236,7 +255,7 @@ function handleYouTubeChannel(req, res, handleOrChannelId) {
             });
           };
           if (!channelId && !isChannelId) {
-            require('https').get('https://www.youtube.com/@' + clean, opts, (mainRes) => {
+            require('https').get('https://www.youtube.com/@' + clean, YT_OPTS, (mainRes) => {
               let mainBody = '';
               mainRes.on('data', c => (mainBody += c));
               mainRes.on('end', () => {
@@ -252,31 +271,26 @@ function handleYouTubeChannel(req, res, handleOrChannelId) {
         }
         res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
         res.end(JSON.stringify(videos.slice(0, 100)));
-      } catch (e) {
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-        res.end('[]');
-      }
-    });
-  }).on('error', () => {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end('[]');
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end('[]');
+    }
   });
 }
 
 /* YouTube search — same format as yt-proxy.js for drop-in compatibility */
 function handleYouTubeSearch(req, res, query) {
   const url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query);
-  require('https').get(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'en' } }, (ytRes) => {
+  require('https').get(url, YT_OPTS, (ytRes) => {
     let body = '';
     ytRes.on('data', c => (body += c));
     ytRes.on('end', () => {
       try {
-        const m = body.match(/var ytInitialData = (\{.*?\});/);
-        if (!m) {
+        const data = parseYtInitialData(body);
+        if (!data) {
           res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
           return res.end('[]');
         }
-        const data = JSON.parse(m[1]);
         const sections = data.contents?.twoColumnSearchResultsRenderer
           ?.primaryContents?.sectionListRenderer?.contents ?? [];
         const results = [];
@@ -298,9 +312,6 @@ function handleYouTubeSearch(req, res, query) {
         res.end('[]');
       }
     });
-  }).on('error', () => {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end('[]');
   });
 }
 
@@ -310,7 +321,14 @@ const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  const parsed = new URL(req.url, 'http://localhost');
+  let parsed;
+  try {
+    parsed = new URL(req.url || '/', 'http://localhost');
+  } catch (e) {
+    res.writeHead(400);
+    res.end('Bad request');
+    return;
+  }
 
   if (parsed.pathname === '/api/recognize') {
     handleRecognize(req, res);
@@ -333,6 +351,52 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  /* Proxy for YouTube (avoids CORS on deployed sites — corsproxy.io often returns 403) */
+  if (parsed.pathname === '/api/proxy') {
+    let target = parsed.searchParams.get('url');
+    if (!target || !/^https:\/\/(www\.)?youtube\.com\//.test(target)) {
+      res.writeHead(400, { 'Content-Type': 'text/plain' });
+      return res.end('Invalid or disallowed url');
+    }
+    const opts = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html',
+        'Accept-Language': 'en'
+      }
+    };
+    function doProxy(url, depth) {
+      if (depth > 5) {
+        res.writeHead(502, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
+        return res.end('Too many redirects');
+      }
+      const lib = url.startsWith('https') ? require('https') : require('http');
+      lib.get(url, opts, (proxyRes) => {
+        const code = proxyRes.statusCode || 0;
+        if (code >= 301 && code <= 308 && proxyRes.headers.location) {
+          const loc = proxyRes.headers.location;
+          const next = loc.startsWith('http') ? loc : (new URL(loc, url)).href;
+          if (/^https:\/\/(www\.)?youtube\.com\//.test(next)) return doProxy(next, depth + 1);
+        }
+        const chunks = [];
+        proxyRes.on('data', c => chunks.push(c));
+        proxyRes.on('end', () => {
+          const body = Buffer.concat(chunks);
+          res.writeHead(proxyRes.statusCode || 200, {
+            'Content-Type': proxyRes.headers['content-type'] || 'text/html',
+            'Access-Control-Allow-Origin': '*'
+          });
+          res.end(body);
+        });
+      }).on('error', (err) => {
+        res.writeHead(502, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
+        res.end('Proxy error: ' + (err.message || 'fetch failed'));
+      });
+    }
+    doProxy(target, 0);
+    return;
+  }
+
   if (parsed.pathname === '/api/reddit') {
     const q = parsed.searchParams.get('q');
     if (!q) { res.writeHead(400); res.end('Missing q param'); return; }
@@ -351,11 +415,15 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (req.url === '/' || req.url === '/index.html') {
+  /* Serve index.html for root (incl. Spotify callback ?code=...) and /index.html */
+  const p = (parsed.pathname || '').replace(/\/+/g, '/');
+  if (!p || p === '/' || p === '/index.html') {
     serveFile(res, path.join(__dirname, 'index.html'), 'text/html');
     return;
   }
 
+  /* Debug: log unexpected paths (e.g. Spotify callback returning 404) */
+  console.warn('[404] req.url=%j parsed.pathname=%j', req.url, parsed.pathname);
   res.writeHead(404);
   res.end('Not found');
 });
@@ -364,5 +432,5 @@ server.listen(PORT, () => {
   if (API_TOKEN === 'test') {
     console.warn('\n⚠️  Using AudD test token. For full recognition, add AUDD_API_TOKEN to .env\n');
   }
-  console.log(`DJ Live listening at http://localhost:${PORT}`);
+  console.log(`DJ Live listening at http://127.0.0.1:${PORT} (use 127.0.0.1 for Spotify login)`);
 });
