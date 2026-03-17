@@ -46,9 +46,13 @@
       min-height: 100vh;
     }
 
-    .landing-left, .landing-right { display: none; }
+    .landing-left, .landing-right {
+      display: none;
+      transition: opacity 0.55s cubic-bezier(0.4, 0, 0.2, 1), transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+      will-change: opacity, transform;
+    }
     body:not(.has-song) .landing-left,
-    body:not(.has-song) .landing-right { display: block; }
+    body:not(.has-song) .landing-right { display: block; opacity: 1; transform: translateY(0); }
     body:not(.has-song) main {
       display: flex;
       flex-direction: column;
@@ -63,7 +67,12 @@
     body:not(.has-song) .now-playing { display: none; }
     body:not(.has-song) .results { display: none; }
     body.has-song .landing-left,
-    body.has-song .landing-right { display: none; }
+    body.has-song .landing-right {
+      display: block; /* keep visible so opacity/transform transition runs */
+      position: fixed; inset: 0; z-index: 40; opacity: 0;
+      transform: translateY(-16px); pointer-events: none;
+      /* fixed so main layout change doesn't jump landing during transition */
+    }
 
     header { text-align: center; margin-bottom: 3rem; }
 
@@ -311,7 +320,7 @@
     }
     .last-song-video-thumb img { width: 100%; height: 100%; object-fit: cover; }
     .last-song-video-thumb .video-play-icon {
-      position: absolute; inset: 0;
+      position: absolute; left: 0; right: 0; top: 0; bottom: 0; width: 100%; height: 100%;
       display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,0.35); color: #fff;
     }
@@ -389,7 +398,7 @@
       width: 100%; height: 100%; object-fit: cover; display: block;
     }
     .result-video-thumb .video-play-icon {
-      position: absolute; inset: 0;
+      position: absolute; left: 0; right: 0; top: 0; bottom: 0; width: 100%; height: 100%;
       display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,0.4);
       color: #fff;
@@ -579,7 +588,7 @@
     /* ── Video badge (Official Music Video) ── */
     .video-badge {
       display: none;
-      position: fixed; top: 0.8rem; left: 50%;
+      position: fixed; top: max(0.8rem, env(safe-area-inset-top, 0.8rem)); left: 50%;
       transform: translateX(-50%);
       z-index: 55;
       color: #fff;
@@ -590,20 +599,17 @@
       padding: 0.45rem 1.2rem;
       pointer-events: none;
       flex-direction: row; align-items: center; gap: 0.6rem;
-      max-width: 55vw; white-space: nowrap;
+      white-space: nowrap;
       overflow: hidden;
-      transition: max-width 0.6s ease-in-out, padding 0.6s ease-in-out,
-                  opacity 0.4s ease, transform 0.5s ease;
+      transition: max-width 0.6s ease-in-out, min-width 0.6s ease-in-out, padding 0.6s ease-in-out,
+                  opacity 0.4s ease, transform 0.5s ease,
+                  border-radius 0.5s ease, background 0.6s ease,
+                  box-shadow 0.6s ease, border-color 0.5s ease;
     }
     .video-badge.compact {
-      max-width: 280px; padding: 0.28rem 0.75rem;
+      max-width: 920px; padding: 0.45rem 1.1rem; /* condensed view: double former width */
     }
-    .video-badge.compact .vb-title,
-    .video-badge.compact .vb-channel,
-    .video-badge.compact .vb-sep,
-    .video-badge.compact .vb-tag { font-size: 0.76rem !important; }
-    .video-badge.compact .vb-platform svg { width: 12px; height: 12px; }
-    .video-badge.visible { display: flex; }
+    .video-badge.visible { display: flex !important; visibility: visible !important; min-width: 140px; min-height: 2.25rem; }
 
     .video-badge .vb-tag {
       display: flex; align-items: center; gap: 0.25rem;
@@ -613,6 +619,7 @@
     }
     .video-badge.official .vb-tag { color: #ff5070; }
     .video-badge.searching .vb-tag { color: var(--accent); }
+    .video-badge .vb-search-icon { width: 1em; height: 1em; flex-shrink: 0; margin-right: 0.25rem; }
     .video-badge .vb-icon { width: 10px; height: 10px; flex-shrink: 0; }
 
     .video-badge .vb-search {
@@ -624,23 +631,65 @@
     .video-badge .vb-search .active { color: var(--accent); }
     .video-badge .vb-search .fail { color: #ff6b6b; opacity: 0.6; }
     .video-badge.searching {
-      flex-direction: column; align-items: center; gap: 0.15rem;
-      border-radius: 12px; max-width: 50vw; white-space: normal;
+      /* Narrow when searching; stretches when title loads */
+      border-radius: 999px;
+      max-width: 200px;
+      padding: 0.45rem 1.2rem;
+      flex-direction: row;
+      z-index: 110;
+      background: rgba(10,10,15,0.75);
+      border-color: rgba(0,255,157,0.25);
+      box-shadow: 0 0 24px rgba(0,255,157,0.15), 0 2px 12px rgba(0,0,0,0.3);
+      animation: vbSearchPulse 2s ease-in-out infinite;
+    }
+    .video-badge.has-title { width: max-content; max-width: min(920px, 75vw); min-width: 0; transition: width 0.5s ease, max-width 0.5s ease; }
+    .video-badge.has-title.compact { max-width: min(520px, 70vw); }
+    .video-badge.has-title.compact .vb-content { flex: 1 1 0; min-width: 0; }
+    .video-badge.has-title.compact .vb-title-state { flex: 1 1 0; min-width: 0; }
+    .video-badge .vb-content {
+      position: relative; flex: 1 1 auto; min-width: 0; min-height: 1.5rem; overflow: hidden;
+      display: flex; align-items: center;
+    }
+    .video-badge.has-title .vb-content { flex: 0 1 auto; }
+    .video-badge .vb-search-state,
+    .video-badge .vb-title-state {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      width: 100%; height: 100%;
+      display: flex; align-items: center; gap: 0.6rem;
+      transition: opacity 0.45s ease;
+      white-space: nowrap;
+    }
+    .video-badge.has-title .vb-title-state { position: static; width: auto; right: auto; bottom: auto; min-width: 0; }
+    .video-badge.searching .vb-search-state { opacity: 1; }
+    .video-badge.searching .vb-title-state { opacity: 0; pointer-events: none; }
+    .video-badge.has-title .vb-search-state { opacity: 0; pointer-events: none; }
+    .video-badge.has-title .vb-title-state { opacity: 1; }
+    @keyframes vbSearchPulse {
+      0%, 100% { opacity: 1; border-color: rgba(0,255,157,0.25); box-shadow: 0 0 24px rgba(0,255,157,0.15), 0 0 48px rgba(123,44,255,0.06), 0 2px 12px rgba(0,0,0,0.3); }
+      33% { border-color: rgba(123,44,255,0.3); box-shadow: 0 0 28px rgba(123,44,255,0.12), 0 0 40px rgba(0,255,157,0.08), 0 2px 12px rgba(0,0,0,0.3); }
+      66% { border-color: rgba(0,212,255,0.3); box-shadow: 0 0 32px rgba(0,212,255,0.15), 0 0 44px rgba(255,46,151,0.06), 0 2px 12px rgba(0,0,0,0.3); }
+      50% { opacity: 0.98; border-color: rgba(0,255,157,0.5); box-shadow: 0 0 36px rgba(0,255,157,0.25), 0 0 56px rgba(255,214,10,0.08), 0 2px 12px rgba(0,0,0,0.3); }
     }
 
+    .video-badge .vb-title-block { display: flex; flex-direction: column; align-items: stretch; width: 100%; gap: 0; }
+    .video-badge .vb-title-row { display: flex; flex-direction: row; align-items: center; gap: 0.6rem; min-width: 0; }
     .video-badge .vb-marquee {
-      overflow: hidden; flex: 1; min-width: 0;
+      overflow: hidden; flex: 0 1 auto; min-width: 0;
     }
+    .video-badge.has-title .vb-marquee { flex: 0 0 auto; }
+    .video-badge.has-title.compact .vb-marquee { flex: 1 1 0; min-width: 0; }
     .video-badge .vb-marquee-inner {
       display: inline-flex; align-items: center;
-      animation: vbScroll 20s linear infinite;
+      animation: vbScroll 18s linear infinite;
+      animation-play-state: paused;
     }
+    .video-badge .vb-marquee.vb-scroll .vb-marquee-inner { animation-play-state: running; }
+    .video-badge .vb-marquee-inner:hover { animation-play-state: paused !important; }
     .video-badge .vb-seg {
       display: inline-flex; align-items: center; gap: 0.5rem;
       flex-shrink: 0;
     }
-    .video-badge .vb-gap { display: inline-block; width: 0.5rem; flex-shrink: 0; }
-    .video-badge .vb-marquee-inner:hover { animation-play-state: paused; }
+    .video-badge .vb-gap { display: inline-block; width: 0.35rem; flex-shrink: 0; }
     @keyframes vbScroll {
       0% { transform: translateX(0); }
       100% { transform: translateX(-50%); }
@@ -662,22 +711,42 @@
       flex-shrink: 0; font-size: 0.95rem;
     }
     .video-badge .vb-platform svg { width: 16px; height: 16px; }
+    .video-badge .vb-title-block { display: flex; flex-direction: column; align-items: stretch; width: 100%; min-width: 0; gap: 0; }
+    .video-badge .vb-title-row { display: flex; flex-direction: row; align-items: center; gap: 0.6rem; min-width: 0; }
+    .video-badge .vb-progress-wrap { width: 100%; height: 3px; background: rgba(255,255,255,0.15); border-radius: 2px; overflow: hidden; margin-top: 0.4rem; flex-shrink: 0; }
+    .video-badge .vb-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), rgba(123,44,255,0.9)); border-radius: 2px; transition: width 0.15s linear; }
 
     .search-debug {
       display: none;
-      position: fixed; top: 4.5rem; right: 1.5rem; z-index: 100;
-      max-width: 90vw; max-height: 40vh; overflow-y: auto;
-      background: rgba(0,0,0,0.85); border: 1px solid var(--accent);
-      border-radius: 8px; padding: 0.75rem 1rem;
-      font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;
-      color: var(--accent); line-height: 1.6; white-space: pre-wrap;
+      position: fixed; top: 4.5rem; left: 1.5rem; z-index: 100;
+      width: min(420px, 92vw); max-height: calc(100vh - 18rem);
+      overflow-x: hidden; overflow-y: auto;
+      background: rgba(0,0,0,0.92); border: 1px solid var(--accent);
+      border-radius: 8px; padding: 0.6rem 0.85rem;
+      font-size: 0.75rem; font-family: 'JetBrains Mono', monospace;
+      line-height: 1.5;
     }
-    .search-debug.debug-visible { display: block; }
+    body.has-song .search-debug.debug-visible { display: block; }
+    .search-debug .db-line { margin-bottom: 0.35rem; word-break: break-word; overflow-wrap: break-word; }
+    .search-debug .db-channel-videos-list .db-line { margin-bottom: 0.15rem; }
+    .search-debug .db-tier { color: #4dd0e1; font-weight: 600; }
+    .search-debug .db-platform { color: #ffb74d; }
+    .search-debug .db-query { color: #ffeb3b; background: rgba(255,235,59,0.12); padding: 0.05rem 0.2rem; border-radius: 3px; }
+    .search-debug .db-status { color: #9e9e9e; }
+    .search-debug .db-ok { color: #69f0ae; }
+    .search-debug .db-fail { color: #ff5252; }
+    .search-debug .db-trying { color: #b39ddb; }
 
     .stg-check {
       display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;
     }
     .stg-check input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+    .stg-tier-list { display: flex; flex-direction: column; gap: 0.35rem; }
+    .stg-tier-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.35rem 0.5rem; background: var(--bg-muted, rgba(255,255,255,0.06)); border-radius: 6px; }
+    .stg-tier-row label { flex: 1; margin: 0; }
+    .stg-tier-move { display: flex; gap: 0.2rem; }
+    .stg-tier-up, .stg-tier-down { width: 28px; height: 24px; padding: 0; font-size: 0.85rem; line-height: 1; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); cursor: pointer; }
+    .stg-tier-up:hover, .stg-tier-down:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 
     @media (min-width: 700px) {
       .video-badge { padding: 0.5rem 1.4rem; }
@@ -696,6 +765,56 @@
     }
     body.has-video .video-bg { display: block; }
     body.has-video.video-ready .video-bg { opacity: 1; }
+    /* Trippy loading overlay – landing screen + video search; circle only when searching */
+    .video-loading {
+      display: none; position: fixed; inset: 0; z-index: 0;
+      overflow: hidden; pointer-events: none;
+      transition: opacity 0.9s cubic-bezier(0.4, 0, 0.2, 1);
+      background: linear-gradient(135deg, #0a0a0f 0%, #1a0a2e 25%, #0a1a2e 50%, #1a2e0a 75%, #0a0a0f 100%);
+      background-size: 400% 400%;
+      animation: vlGradient 12s ease infinite;
+    }
+    @keyframes vlGradient {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+    body:not(.has-song) .video-loading { display: block; }
+    body.has-video .video-loading { display: block; z-index: 40; }
+    body.has-video.video-ready .video-loading { opacity: 0; pointer-events: none; }
+    body.has-song:not(.has-video) .video-loading { display: none; }
+    .vl-rings { display: none; }
+    body.has-video:not(.video-ready) .vl-rings { display: block; }
+    .vl-orb {
+      position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.7;
+      animation: vlFloat 8s ease-in-out infinite;
+    }
+    .vl-orb-1 { width: 200px; height: 200px; background: #00ff9d; top: 10%; left: 15%; animation-delay: 0s; }
+    .vl-orb-2 { width: 180px; height: 180px; background: #7b2cff; top: 60%; right: 20%; animation-delay: -2s; }
+    .vl-orb-3 { width: 160px; height: 160px; background: #ff2e97; bottom: 20%; left: 30%; animation-delay: -4s; }
+    .vl-orb-4 { width: 140px; height: 140px; background: #00d4ff; top: 30%; right: 35%; animation-delay: -1s; }
+    .vl-orb-5 { width: 120px; height: 120px; background: #ffd60a; bottom: 40%; left: 10%; animation-delay: -5s; }
+    .vl-orb-6 { width: 100px; height: 100px; background: #00f5d4; top: 70%; right: 10%; animation-delay: -3s; }
+    .vl-ring, .vl-ring-2 {
+      position: absolute; inset: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px;
+      border: 2px solid rgba(0,255,157,0.4); border-radius: 50%;
+      animation: vlSpinPulse 2.5s ease-in-out infinite;
+    }
+    .vl-ring-2 { width: 200px; height: 200px; margin: -100px 0 0 -100px; border-color: rgba(123,44,255,0.3); animation: vlSpinPulse 2.5s ease-in-out infinite reverse; animation-delay: 0.4s; }
+    @keyframes vlSpinPulse {
+      0%, 100% { transform: rotate(0deg) scale(0.88); opacity: 0.5; }
+      50% { transform: rotate(180deg) scale(1.12); opacity: 1; }
+    }
+    @keyframes vlFloat {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      25% { transform: translate(30px, -40px) scale(1.1); }
+      50% { transform: translate(-20px, 30px) scale(0.95); }
+      75% { transform: translate(40px, 20px) scale(1.05); }
+    }
+    @keyframes vlSpin {
+      0%, 100% { transform: rotate(0deg) scale(0.92); opacity: 0.6; }
+      50% { transform: rotate(180deg) scale(1.12); opacity: 0.95; }
+      100% { transform: rotate(360deg) scale(0.92); opacity: 0.6; }
+    }
     body.has-video.video-paused .video-bg,
     body.video-paused .video-bg,
     .video-bg.video-paused { opacity: 0 !important; transition: opacity 0.3s ease; }
@@ -710,7 +829,7 @@
       object-fit: cover;
     }
 
-    /* Hide Dailymotion watermark overlay area at bottom */
+    /* Gradient overlay at bottom of video */
     .video-bg::before {
       content: ''; position: absolute; bottom: 0; left: 0; right: 0;
       height: 80px; z-index: 2; pointer-events: none;
@@ -718,13 +837,13 @@
     }
 
     .video-bg::after {
-      content: ''; position: absolute; inset: 0;
+      content: ''; position: absolute; left: 0; right: 0; top: 0; bottom: 0; width: 100%; height: 100%;
       background: rgba(10,10,15,0.55);
       z-index: 1;
     }
 
     .video-bg canvas {
-      position: absolute; inset: 0;
+      position: absolute; left: 0; right: 0; top: 0; bottom: 0; width: 100%; height: 100%;
       width: 100% !important; height: 100% !important; display: block;
     }
 
@@ -838,6 +957,8 @@
 
     body.has-song main {
       max-width: 100%; padding: 0; margin: 0;
+      display: flex;
+      flex-direction: column;
     }
 
     body.has-song header { display: none; }
@@ -860,20 +981,24 @@
     body.has-song .status-text { font-size: 0.82rem; }
     body.has-song .status-subtext { display: none; }
 
-    /* Now Playing → fullscreen */
+    /* Now Playing → fullscreen, fade in when visible */
     body.has-song .now-playing {
       position: fixed; inset: 0; z-index: 50;
       border: none; border-radius: 0;
       background: var(--bg-deep);
       margin: 0;
-      display: none;
+      display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
       padding: 4.5rem 1.5rem 2rem;
       overflow-y: auto;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+      will-change: opacity;
     }
-    body.has-song .now-playing.visible { display: flex; }
+    body.has-song .now-playing.visible { opacity: 1; pointer-events: auto; }
     body.has-song .now-playing.paused { border: none; }
 
     body.has-song .np-header { margin-bottom: 1.5rem; }
@@ -1137,6 +1262,18 @@
 <body>
   <div class="bg-grid"></div>
   <div class="video-bg" id="videoBg"></div>
+  <div class="video-loading" id="videoLoading">
+    <div class="vl-orb vl-orb-1"></div>
+    <div class="vl-orb vl-orb-2"></div>
+    <div class="vl-orb vl-orb-3"></div>
+    <div class="vl-orb vl-orb-4"></div>
+    <div class="vl-orb vl-orb-5"></div>
+    <div class="vl-orb vl-orb-6"></div>
+    <div class="vl-rings">
+      <div class="vl-ring"></div>
+      <div class="vl-ring-2"></div>
+    </div>
+  </div>
   <div class="video-badge" id="videoBadge"></div>
   <div class="search-debug" id="searchDebugBox"></div>
   <div class="social-posts-ticker" id="socialPostsTicker"></div>
@@ -1152,10 +1289,36 @@
         <span class="stg-label">Mode</span>
         <div class="stg-row">
           <button class="stg-radio" data-bg="youtube" type="button">YouTube</button>
-          <button class="stg-radio" data-bg="video" type="button">Dailymotion</button>
-          <button class="stg-radio" data-bg="both" type="button">YT + DM</button>
           <button class="stg-radio" data-bg="visualizer" type="button">Visualizer</button>
         </div>
+      </div>
+      <div class="stg-group">
+        <span class="stg-label">Fallback playlist</span>
+        <div class="stg-row" style="margin-bottom:0.5rem">
+          <button class="stg-radio" data-fallback-source="djlive" type="button">DJ Live YouTube Playlist</button>
+          <button class="stg-radio" data-fallback-source="custom" type="button">Custom</button>
+        </div>
+        <div id="fallbackPlaylistCustomWrap" style="display:none;margin-top:0.35rem">
+          <input class="stg-input" id="fallbackPlaylistUrl" type="text" placeholder="https://www.youtube.com/playlist?list=PLxxx" style="width:100%">
+        </div>
+        <p class="stg-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem">When no official-channel videos work, play this playlist instead of ambient</p>
+        <label class="stg-check" style="margin-top:0.5rem">
+          <input type="checkbox" id="fallbackPlaylistShuffleCb">
+          <span>Shuffle fallback playlist</span>
+        </label>
+      </div>
+      <div class="stg-group">
+        <span class="stg-label">Video search tiers</span>
+        <p class="stg-hint" style="font-size:0.75rem;color:var(--text-muted);margin:0.25rem 0 0.5rem">Choose tiers to search and their order. Uncheck to disable. Use ↑↓ to reorder.</p>
+        <div id="stgTierOrderList" class="stg-tier-list"></div>
+        <label class="stg-check" style="margin-top:0.5rem">
+          <input type="checkbox" id="deepSearchCb">
+          <span>Deep search (load all channel videos when no hits)</span>
+        </label>
+        <label class="stg-check" style="margin-top:0.5rem">
+          <input type="checkbox" id="randomLiveStartCb">
+          <span>Random start in long live sets (skip to random point 0–50 min)</span>
+        </label>
       </div>
       <hr class="stg-divider">
       <h2>Lyrics</h2>
@@ -1206,6 +1369,7 @@
             <button class="stg-radio" id="spotifySignIn" type="button">Sign In</button>
             <button class="stg-radio" id="spotifySignOut" type="button">Sign Out</button>
           </div>
+          <p id="spotifyRedirectUriHint" class="stg-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;word-break:break-all">Add this to Spotify Dashboard → Redirect URIs: <strong id="spotifyRedirectUriValue"></strong></p>
         </div>
       </div>
 
@@ -1335,7 +1499,15 @@
       auddToken: '15b8d3ac5946ec625264fec02d9cdb15',
       lyricsOffsetMs: 2200,
       searchDebug: false,
-      showSocialPosts: false
+      deepSearch: false,
+      showSocialPosts: false,
+      ambientDefault: 'youtube',
+      fallbackPlaylistSource: 'djlive',
+      fallbackPlaylistUrl: '',
+      fallbackPlaylistShuffle: false,
+      randomLiveStart: false,
+      tierOrder: [0, 1, 2, 3],
+      tierEnabled: [true, true, true, false]
     };
 
     const SETTINGS_KEY = 'djlive_settings2';
@@ -1343,8 +1515,19 @@
       try {
         const s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
         const merged = s ? { ...DEFAULTS, ...s } : { ...DEFAULTS };
-        if (!['youtube', 'video', 'both', 'visualizer'].includes(merged.bgMode)) merged.bgMode = DEFAULTS.bgMode;
+        if (!['youtube', 'visualizer'].includes(merged.bgMode)) merged.bgMode = DEFAULTS.bgMode;
         if (!['listen', 'spotify'].includes(merged.musicSource)) merged.musicSource = DEFAULTS.musicSource;
+        if (merged.ambientDefault !== 'youtube') merged.ambientDefault = 'youtube';
+        if (typeof merged.fallbackPlaylistShuffle !== 'boolean') merged.fallbackPlaylistShuffle = !!DEFAULTS.fallbackPlaylistShuffle;
+        if (typeof merged.randomLiveStart !== 'boolean') merged.randomLiveStart = !!DEFAULTS.randomLiveStart;
+        if (!['djlive', 'custom'].includes(merged.fallbackPlaylistSource)) merged.fallbackPlaylistSource = (merged.fallbackPlaylistUrl && (merged.fallbackPlaylistUrl.match(/[?&]list=([a-zA-Z0-9_-]+)/)?.[1])) ? 'custom' : 'djlive';
+        if (!Array.isArray(merged.tierOrder) || merged.tierOrder.length === 0) merged.tierOrder = [...DEFAULTS.tierOrder];
+        if (!Array.isArray(merged.tierEnabled) || merged.tierEnabled.length < 4) merged.tierEnabled = [...(DEFAULTS.tierEnabled || [true, true, true, false])];
+        merged.tierOrder = merged.tierOrder.filter(i => [0, 1, 2, 3].includes(i));
+        [2, 3].forEach(t => { if (!merged.tierOrder.includes(t)) merged.tierOrder.push(t); });
+        if (merged.tierOrder.length === 0) merged.tierOrder = [0, 1, 2, 3];
+        merged.tierEnabled = merged.tierEnabled.slice(0, 4);
+        while (merged.tierEnabled.length < 4) merged.tierEnabled.push(true);
         return merged;
       } catch (_) { return { ...DEFAULTS }; }
     }
@@ -1389,10 +1572,16 @@
     const settingsOverlay = document.getElementById('settingsOverlay');
     const stgStatus = document.getElementById('stgStatus');
     const bgBtns = settingsOverlay.querySelectorAll('[data-bg]');
+    const ambientBtns = settingsOverlay.querySelectorAll('[data-ambient]');
     const musicSourceBtns = settingsOverlay.querySelectorAll('[data-music-source]');
     const fieldsSpotify = document.getElementById('fieldsSpotify');
     let stgBgMode = settings.bgMode;
+    let stgAmbientDefault = settings.ambientDefault || 'youtube';
     let stgMusicSource = settings.musicSource;
+    let stgFallbackPlaylistSource = settings.fallbackPlaylistSource || 'djlive';
+    let stgTierOrder = [...(settings.tierOrder || [0, 1, 2, 3])];
+    let stgTierEnabled = [...(settings.tierEnabled || [true, true, true, false])];
+    while (stgTierEnabled.length < 4) stgTierEnabled.push(true);
 
     function renderUsageBar(containerId, provider) {
       const el = document.getElementById(containerId);
@@ -1408,21 +1597,77 @@
         '<span class="stg-usage-text">' + left + ' / ' + limit + ' left today</span>';
     }
 
+    const TIER_LABELS_CFG = ['Visualizer', 'Live', 'Music Video', 'Live (fan)'];
+    function renderTierOrderList() {
+      const container = document.getElementById('stgTierOrderList');
+      if (!container) return;
+      const order = stgTierOrder;
+      const enabled = stgTierEnabled;
+      container.innerHTML = order.map((tierIdx, pos) => {
+        const label = TIER_LABELS_CFG[tierIdx] || 'Tier ' + tierIdx;
+        const canUp = pos > 0;
+        const canDown = pos < order.length - 1;
+        return '<div class="stg-tier-row" data-tier="' + tierIdx + '">' +
+          '<label class="stg-check"><input type="checkbox" class="stg-tier-cb"' + (enabled[tierIdx] !== false ? ' checked' : '') + '> <span>' + label + '</span></label>' +
+          '<div class="stg-tier-move">' +
+          '<button type="button" class="stg-tier-up" title="Move up"' + (canUp ? '' : ' disabled') + '>↑</button>' +
+          '<button type="button" class="stg-tier-down" title="Move down"' + (canDown ? '' : ' disabled') + '>↓</button>' +
+          '</div></div>';
+      }).join('');
+      container.querySelectorAll('.stg-tier-up').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const rows = Array.from(container.querySelectorAll('.stg-tier-row'));
+          const idx = rows.findIndex(r => r.contains(btn));
+          if (idx <= 0) return;
+          [stgTierOrder[idx - 1], stgTierOrder[idx]] = [stgTierOrder[idx], stgTierOrder[idx - 1]];
+          renderTierOrderList();
+        });
+      });
+      container.querySelectorAll('.stg-tier-down').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const rows = Array.from(container.querySelectorAll('.stg-tier-row'));
+          const idx = rows.findIndex(r => r.contains(btn));
+          if (idx < 0 || idx >= stgTierOrder.length - 1) return;
+          [stgTierOrder[idx], stgTierOrder[idx + 1]] = [stgTierOrder[idx + 1], stgTierOrder[idx]];
+          renderTierOrderList();
+        });
+      });
+    }
+
     function openSettings() {
       stgBgMode = settings.bgMode;
+      stgAmbientDefault = settings.ambientDefault || 'youtube';
       stgMusicSource = settings.musicSource;
       document.getElementById('spotifyClientId').value = settings.spotifyClientId || DEFAULT_SPOTIFY_CLIENT_ID;
       const redirectHint = document.getElementById('spotifyRedirectUriHint');
-      if (redirectHint) redirectHint.textContent = window.location.origin + (window.location.pathname || '/');
+      if (redirectHint) {
+        const span = redirectHint.querySelector('span');
+        if (span) span.textContent = window.location.origin + (window.location.pathname || '/');
+      }
       const lo = settings.lyricsOffsetMs ?? DEFAULTS.lyricsOffsetMs ?? 2200;
       document.getElementById('lyricsOffsetMs').value = lo;
       document.getElementById('searchDebugCb').checked = !!settings.searchDebug;
+      document.getElementById('deepSearchCb').checked = !!settings.deepSearch;
+      document.getElementById('randomLiveStartCb').checked = !!settings.randomLiveStart;
       document.getElementById('showSocialPostsCb').checked = !!settings.showSocialPosts;
+      stgFallbackPlaylistSource = settings.fallbackPlaylistSource || 'djlive';
+      document.querySelectorAll('[data-fallback-source]').forEach(b => b.classList.toggle('active', b.dataset.fallbackSource === stgFallbackPlaylistSource));
+      const fpWrap = document.getElementById('fallbackPlaylistCustomWrap');
+      if (fpWrap) fpWrap.style.display = stgFallbackPlaylistSource === 'custom' ? 'block' : 'none';
+      const fpEl = document.getElementById('fallbackPlaylistUrl');
+      if (fpEl) fpEl.value = settings.fallbackPlaylistUrl || '';
+      document.getElementById('fallbackPlaylistShuffleCb').checked = !!settings.fallbackPlaylistShuffle;
+      stgTierOrder = [...(settings.tierOrder || [0, 1, 2, 3])];
+      stgTierEnabled = [...(settings.tierEnabled || [true, true])];
+      renderTierOrderList();
       bgBtns.forEach(b => {
         b.classList.toggle('active', b.dataset.bg === stgBgMode);
       });
       musicSourceBtns.forEach(b => {
         b.classList.toggle('active', b.dataset.musicSource === stgMusicSource);
+      });
+      ambientBtns.forEach(b => {
+        b.classList.toggle('active', b.dataset.ambient === stgAmbientDefault);
       });
       fieldsSpotify.classList.toggle('visible', stgMusicSource === 'spotify');
       updateSpotifyButtons(!!getSpotifyAccessToken());
@@ -1446,6 +1691,23 @@
         stgMusicSource = btn.dataset.musicSource;
         musicSourceBtns.forEach(b => b.classList.toggle('active', b === btn));
         fieldsSpotify.classList.toggle('visible', stgMusicSource === 'spotify');
+      });
+    });
+
+    ambientBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        stgAmbientDefault = btn.dataset.ambient;
+        ambientBtns.forEach(b => b.classList.toggle('active', b === btn));
+      });
+    });
+
+    const fallbackSourceBtns = settingsOverlay.querySelectorAll('[data-fallback-source]');
+    fallbackSourceBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        stgFallbackPlaylistSource = btn.dataset.fallbackSource || 'djlive';
+        fallbackSourceBtns.forEach(b => b.classList.toggle('active', b === btn));
+        const fpWrap = document.getElementById('fallbackPlaylistCustomWrap');
+        if (fpWrap) fpWrap.style.display = stgFallbackPlaylistSource === 'custom' ? 'block' : 'none';
       });
     });
 
@@ -1562,9 +1824,7 @@
       fetchCoverArt(r);
       const token = getSpotifyAccessToken();
       fetchLyrics(r.title, r.artist, r.album, curDurationMs, { spotifyTrackId: track.id, spotifyToken: token });
-      if (videoForKey !== key) searchAndPlayVideo(r.title, r.artist, 0);
-      document.body.classList.add('has-song');
-      nowPlaying.classList.add('visible');
+      if (videoForKey !== key) searchAndPlayVideo(r.title, r.artist, 0, curDurationMs);
       startProgress();
       startLyrics();
     }
@@ -1740,10 +2000,31 @@
     (async function handleSpotifyOAuthCallback() {
       const params = new URLSearchParams(window.location.search);
       const code = params.get('code');
+      const error = params.get('error');
+      const errorDesc = params.get('error_description');
+
+      function showOAuthError(msg) {
+        if (stgStatus) {
+          stgStatus.textContent = msg;
+          stgStatus.className = 'stg-status err';
+        }
+        openSettings();
+      }
+
+      if (error) {
+        showOAuthError('Spotify: ' + (errorDesc || error) + '. Try again or use incognito.');
+        history.replaceState('', '', window.location.pathname || '/');
+        return;
+      }
       if (!code) return;
+
       const verifier = sessionStorage.getItem('spotify_code_verifier');
       const clientId = (settings.spotifyClientId || DEFAULT_SPOTIFY_CLIENT_ID).trim();
-      if (!verifier || !clientId) return;
+      if (!verifier || !clientId) {
+        showOAuthError('Session lost. Sign in again in the same tab.');
+        history.replaceState('', '', window.location.pathname || '/');
+        return;
+      }
       try {
         const res = await fetch('https://accounts.spotify.com/api/token', {
           method: 'POST',
@@ -1769,8 +2050,12 @@
           musicSourceBtns.forEach(b => { b.classList.toggle('active', b.dataset.musicSource === 'spotify'); });
           applyMusicSourceMode();
           startSpotifyPolling();
+        } else if (data.error) {
+          showOAuthError('Token exchange: ' + (data.error_description || data.error));
         }
-      } catch (_) {}
+      } catch (e) {
+        showOAuthError(e?.message || 'Network error during sign in.');
+      }
       history.replaceState('', '', window.location.pathname || '/');
     })();
 
@@ -1801,7 +2086,28 @@
       const loVal = parseInt(document.getElementById('lyricsOffsetMs').value, 10);
       settings.lyricsOffsetMs = Number.isFinite(loVal) ? Math.max(-3000, Math.min(3000, loVal)) : (DEFAULTS.lyricsOffsetMs ?? 2200);
       settings.searchDebug = !!document.getElementById('searchDebugCb').checked;
+      settings.deepSearch = !!document.getElementById('deepSearchCb').checked;
+      settings.randomLiveStart = !!document.getElementById('randomLiveStartCb').checked;
       settings.showSocialPosts = !!document.getElementById('showSocialPostsCb').checked;
+      settings.ambientDefault = stgAmbientDefault || 'youtube';
+      const customUrl = (document.getElementById('fallbackPlaylistUrl')?.value || '').trim();
+      const customId = customUrl.match(/[?&]list=([a-zA-Z0-9_-]+)/)?.[1];
+      if (stgFallbackPlaylistSource === 'custom' && !customId) {
+        stgFallbackPlaylistSource = 'djlive';
+        document.querySelectorAll('[data-fallback-source]').forEach(b => b.classList.toggle('active', b.dataset.fallbackSource === 'djlive'));
+        const fpWrap = document.getElementById('fallbackPlaylistCustomWrap');
+        if (fpWrap) fpWrap.style.display = 'none';
+      }
+      settings.fallbackPlaylistSource = stgFallbackPlaylistSource || 'djlive';
+      settings.fallbackPlaylistUrl = (settings.fallbackPlaylistSource === 'custom') ? customUrl : '';
+      settings.fallbackPlaylistShuffle = !!document.getElementById('fallbackPlaylistShuffleCb')?.checked;
+      const tierList = document.getElementById('stgTierOrderList');
+      if (tierList) {
+        const rows = tierList.querySelectorAll('.stg-tier-row');
+        settings.tierOrder = Array.from(rows).map(r => parseInt(r.dataset.tier, 10));
+        settings.tierEnabled = [true, true, true, false];
+        rows.forEach(r => { settings.tierEnabled[parseInt(r.dataset.tier, 10)] = !!r.querySelector('.stg-tier-cb')?.checked; });
+      }
 
       if (stgMusicSource === 'spotify') {
         applyMusicSourceMode();
@@ -1828,7 +2134,7 @@
           if (vizAnalyserNode) startVisualizer();
           else initVisualizerAudioOnly().catch(() => {});
         } else if (curResult) {
-          searchAndPlayVideo(curResult.title, curResult.artist, 0);
+          searchAndPlayVideo(curResult.title, curResult.artist, 0, getDuration(curResult));
         }
       }
 
@@ -1888,6 +2194,16 @@
       if (p.length === 2) return (p[0] * 60 + p[1]) * 1000;
       if (p.length === 3) return (p[0] * 3600 + p[1] * 60 + p[2]) * 1000;
       return null;
+    }
+
+    /** Parse YouTube lengthText (e.g. "3:45", "1:23:45") to seconds. Returns 0 if unparseable. */
+    function parseYtDuration(text) {
+      if (!text || typeof text !== 'string') return 0;
+      const s = text.trim().replace(/\s/g, '');
+      const parts = s.split(':').map(Number);
+      if (parts.some(isNaN) || parts.length < 2 || parts.length > 3) return 0;
+      if (parts.length === 2) return parts[0] * 60 + parts[1];
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
     }
 
     function isSameSong(a1, t1, a2, t2) {
@@ -2135,7 +2451,10 @@
 
     function showNowPlaying(result, badge) {
       document.body.classList.add('has-song');
-      nowPlaying.classList.add('visible');
+      /* Let landing start fading out, then crossfade in now-playing after ~1 frame */
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => nowPlaying.classList.add('visible'));
+      });
       nowPlaying.classList.remove('paused');
       isPaused = false;
       flashNpBadge(badge || 'Now Playing');
@@ -2641,11 +2960,13 @@
     const videoBadge = document.getElementById('videoBadge');
     let videoForKey = null;
     let videoBadgeCompactTimer = null;
+    let _videoProgressInterval = null;
+    let _lastBadgeUnit = null;
 
     const YT_ICON = '<svg viewBox="0 0 24 24" fill="#FF0000"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.38.55A3.02 3.02 0 0 0 .5 6.19 31.6 31.6 0 0 0 0 12a31.6 31.6 0 0 0 .5 5.81 3.02 3.02 0 0 0 2.12 2.14c1.88.55 9.38.55 9.38.55s7.5 0 9.38-.55a3.02 3.02 0 0 0 2.12-2.14A31.6 31.6 0 0 0 24 12a31.6 31.6 0 0 0-.5-5.81zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/></svg>';
     const DM_ICON = '<svg viewBox="0 0 24 24" fill="#00AAFF"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm4.5 12l-6.75 4.5v-9L16.5 12z"/></svg>';
 
-    const TIER_LABELS = ['Official Music Video', 'Live / Concert', 'Artist + Song'];
+    const TIER_LABELS = ['Visualizer', 'Live', 'Music Video', 'Live (fan)'];
 
     const searchDebugBox = document.getElementById('searchDebugBox');
     function applySearchDebugVisibility() {
@@ -2659,30 +2980,95 @@
     }
     applySearchDebugVisibility();
     applySocialPostsVisibility();
-    function showSearchStatus(tierLabel, platform, status, detail) {
-      const plat = platform === 'yt' ? 'YouTube' : platform === 'dm' ? 'Dailymotion' : platform;
-      const line = plat ? (tierLabel + ' → ' + plat + ': ' + status) : (tierLabel + ': ' + status);
-      const fullLine = detail ? line + '\n  ' + detail : line;
-      const detailHtml = detail ? '<div class="vb-search">' + escapeHtml(detail) + '</div>' : '';
-      videoBadge.innerHTML = '<div class="vb-tag">' + escapeHtml(line) + '</div>' + detailHtml;
-      videoBadge.className = 'video-badge visible searching';
-      if (searchDebugBox) {
-        const span = document.createElement('div');
-        span.textContent = fullLine;
-        searchDebugBox.appendChild(span);
-        searchDebugBox.scrollTop = searchDebugBox.scrollHeight;
+    function appendDebugLog(opts) {
+      if (!searchDebugBox || !settings.searchDebug) return;
+      const div = document.createElement('div');
+      div.className = 'db-line';
+      const esc = escapeHtml;
+      if (opts.type === 'unembeddable') {
+        const title = (opts.title || '').slice(0, 50) + ((opts.title || '').length > 50 ? '…' : '');
+        const nextNote = opts.idx < opts.total ? ' <span class="db-trying">→ next</span>' : '';
+        div.innerHTML = '  <span class="db-fail">✗</span> [' + opts.idx + '/' + opts.total + '] <span class="db-query">' + esc(title) + '</span> — failed' + nextNote;
+      } else if (opts.type === 'playlist-playing') {
+        const title = (opts.title || '').slice(0, 55) + ((opts.title || '').length > 55 ? '…' : '');
+        div.innerHTML = '  <span class="db-ok">✓ Playlist: playing</span> <span class="db-query">' + esc(title) + '</span>' + (opts.author ? ' <span class="db-status">(' + esc(opts.author) + ')</span>' : '');
+      } else if (opts.type === 'playlist-error') {
+        const isUnembeddable = opts.code === 150 || opts.code === 101;
+        const label = isUnembeddable ? '✗ Not embeddable' : '✗ Error ' + opts.code;
+        const title = (opts.title || opts.videoId || '').slice(0, 50) + ((opts.title || opts.videoId || '').length > 50 ? '…' : '');
+        div.innerHTML = '  <span class="db-fail">' + label + '</span> <span class="db-query">' + esc(title) + '</span> <span class="db-status">(code ' + opts.code + ')</span>';
+      } else if (opts.type === 'loaded') {
+        const title = (opts.title || '').slice(0, 50) + ((opts.title || '').length > 50 ? '…' : '');
+        div.innerHTML = '  <span class="db-ok">✓</span> [' + opts.idx + '/' + opts.total + '] <span class="db-query">' + esc(title) + '</span> — loaded';
+      } else if (opts.type === 'official-channel') {
+        const name = opts.name || opts.handle || '';
+        const detail = opts.channelsSeen?.length ? ' (channels seen: ' + opts.channelsSeen.slice(0, 5).map(c => esc(c)).join(', ') + (opts.channelsSeen.length > 5 ? '…' : '') + ')' : '';
+        if (opts.found && name) {
+          div.innerHTML = '<span class="db-ok">✓ Official channel</span> <span class="db-query">' + esc(name) + '</span>' + (opts.handle && opts.handle !== name ? ' <span class="db-status">(@' + esc(opts.handle) + ')</span>' : '') + detail;
+        } else {
+          div.innerHTML = '<span class="db-fail">✗ Official channel not found</span>' + detail;
+        }
+      } else if (opts.type === 'channel-skipped') {
+        div.innerHTML = '<span class="db-status">Channel videos skipped</span> <span class="db-query">' + esc(opts.reason || 'no valid @handle or channelId') + '</span>';
+      } else if (opts.type === 'channel-videos') {
+        const matched = opts.matched || [];
+        const errNote = opts.error ? ' <span class="db-fail">(' + esc(opts.error) + ')</span>' : '';
+        if (matched.length === 0) {
+          div.innerHTML = '<span class="db-status">No videos on channel match title</span>' + errNote;
+        } else {
+          const titles = matched.slice(0, 5).map(v => esc((v.title || '').slice(0, 45) + ((v.title || '').length > 45 ? '…' : '')));
+          div.innerHTML = '<span class="db-ok">' + matched.length + ' on channel match:</span> ' + titles.join(' → ') + (matched.length > 5 ? '…' : '');
+        }
+        searchDebugBox.appendChild(div);
+        return;
+      } else {
+        const tier = '<span class="db-tier">' + esc(opts.tierLabel || '') + '</span>';
+        const plat = opts.platform ? ' <span class="db-platform">' + esc(opts.platform === 'yt' ? 'YouTube' : opts.platform === 'dm' ? 'Dailymotion' : opts.platform) + '</span>' : '';
+        const failStatuses = /none found|unavailable|retrying|retry|falling back|checking\.\.\./i;
+        const st = opts.status === 'found' ? 'db-ok' : (failStatuses.test(opts.status || '') ? 'db-fail' : 'db-status');
+        const statusSpan = '<span class="' + st + '">' + esc(opts.status || '') + '</span>';
+        const detail = opts.detail ? '<div style="margin-left:0.5rem;margin-top:0.15rem"><span class="db-query">' + esc((opts.detail || '').slice(0, 80) + ((opts.detail || '').length > 80 ? '…' : '')) + '</span></div>' : '';
+        div.innerHTML = tier + plat + ': ' + statusSpan + detail;
       }
+      searchDebugBox.appendChild(div);
+      searchDebugBox.scrollTop = searchDebugBox.scrollHeight;
+    }
+    const SEARCH_ICON = '<svg class="vb-search-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>';
+    function showSearchStatus(tierLabel, platform, status, detail) {
+      /* Single badge: shows Searching; when title loads, same element shows title (crossfade) */
+      const content = videoBadge.querySelector('.vb-content');
+      if (content) {
+        const searchState = content.querySelector('.vb-search-state');
+        const titleState = content.querySelector('.vb-title-state');
+        if (searchState) searchState.innerHTML = '<div class="vb-tag">' + SEARCH_ICON + 'Searching</div>';
+        if (titleState) titleState.innerHTML = '';
+        videoBadge.className = 'video-badge visible searching';
+      } else {
+        videoBadge.innerHTML =
+          '<div class="vb-content">' +
+          '<div class="vb-search-state"><div class="vb-tag">' + SEARCH_ICON + 'Searching</div></div>' +
+          '<div class="vb-title-state"></div>' +
+          '</div>';
+        videoBadge.className = 'video-badge visible searching';
+      }
+      videoBadge.style.display = 'flex';
+      videoBadge.offsetHeight; /* force reflow */
+      appendDebugLog({ tierLabel, platform, status, detail });
     }
 
-    function showVideoBadge(videoTitle, channel, platform) {
+    function showVideoBadge(videoTitle, channel, platform, tierLabel) {
       if (!videoTitle) { hideVideoBadge(); return; }
       const t = (videoTitle || '').toLowerCase();
       const isOfficial = /official\s*(music\s*)?video|official\s*mv/.test(t)
         || (/\bmusic\s*video\b/.test(t) && /official/.test(t));
       const isLive = /\blive\b|\bconcert\b|\bperformanc|\bfestival\b/.test(t);
 
-      const tagLabel = isOfficial ? 'Official Music Video'
-        : isLive ? 'Live Performance' : 'Music Video';
+      /* Use tier when provided; fallback to _embedTierLabel or _currentSearchTierLabel */
+      const raw = (tierLabel != null && String(tierLabel).trim() !== '') ? tierLabel : (_embedTierLabel || _currentSearchTierLabel);
+      const tierStr = (raw != null && String(raw).trim() !== '') ? String(raw).trim() : null;
+      const tagLabel = tierStr
+        ? tierStr
+        : (isOfficial ? 'Official Music Video' : isLive ? 'Live Performance' : 'Music Video');
 
       const checkIcon = '<svg class="vb-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>';
 
@@ -2690,25 +3076,90 @@
       const platHtml = platIcon ? '<span class="vb-platform">' + platIcon + '</span>' : '';
 
       const titleE = escapeHtml(videoTitle);
-      const chE = channel ? escapeHtml(channel) : '';
+      /* Skip channel when redundant: in title, or title starts with "Channel - " / "Channel | " etc */
+      const chLow = (channel || '').toLowerCase().trim();
+      const channelRedundant = chLow && chLow.length >= 2 && (
+        t.includes(chLow) ||
+        t.startsWith(chLow + ' ') || t.startsWith(chLow + ' -') || t.startsWith(chLow + ' –') ||
+        t.startsWith(chLow + '|') || t.startsWith(chLow + ' |')
+      );
+      const chE = (channel && !channelRedundant) ? escapeHtml(channel) : '';
+      const showCheck = (tierStr === 'Visualizer' || isOfficial);
       const seg = '<span class="vb-title">' + titleE + '</span>' +
         (chE ? '<span class="vb-sep">•</span><span class="vb-channel">' + chE + '</span>' : '') +
-        '<span class="vb-sep">•</span><span class="vb-tag">' + (isOfficial ? checkIcon : '') + tagLabel + '</span>';
+        '<span class="vb-sep">•</span><span class="vb-tag">' + (showCheck ? checkIcon : '') + tagLabel + '</span>';
       const unit = '<span class="vb-seg">' + seg + '<span class="vb-gap"></span></span>';
-      videoBadge.innerHTML =
-        platHtml +
-        '<div class="vb-marquee"><div class="vb-marquee-inner">' + unit + unit + '</div></div>';
+      const marqueeHtml = '<div class="vb-marquee"><div class="vb-marquee-inner">' + unit + '</div></div>';
+      const progressHtml = platform === 'youtube' ? '<div class="vb-progress-wrap"><div class="vb-progress-fill"></div></div>' : '';
+      const titleRowHtml = '<div class="vb-title-row">' + platHtml + marqueeHtml + '</div>';
+      const titleBlockHtml = '<div class="vb-title-block">' + titleRowHtml + progressHtml + '</div>';
+      const titleState = videoBadge.querySelector('.vb-title-state');
+      if (titleState) {
+        titleState.innerHTML = titleBlockHtml;
+        videoBadge.classList.remove('searching');
+        videoBadge.classList.add('has-title');
+      } else {
+        videoBadge.innerHTML =
+          '<div class="vb-content">' +
+          '<div class="vb-search-state"><div class="vb-tag">' + SEARCH_ICON + 'Searching</div></div>' +
+          '<div class="vb-title-state">' + titleBlockHtml + '</div>' +
+          '</div>';
+        videoBadge.className = 'video-badge visible has-title' + ((tierLabel === 'Visualizer' || isOfficial) ? ' official' : '');
+      }
+      _lastBadgeUnit = unit;
+      function checkBadgeOverflow() {
+        const marquee = videoBadge.querySelector('.vb-marquee');
+        const inner = videoBadge.querySelector('.vb-marquee-inner');
+        if (!marquee || !inner || !_lastBadgeUnit) return;
+        /* Force reflow so clientWidth reflects compact layout before measuring */
+        void marquee.offsetHeight;
+        if (inner.scrollWidth > marquee.clientWidth) {
+          marquee.classList.add('vb-scroll');
+          inner.innerHTML = _lastBadgeUnit + _lastBadgeUnit;
+        }
+      }
+      requestAnimationFrame(() => {
+        requestAnimationFrame(checkBadgeOverflow);
+      });
+      if (_videoProgressInterval) { clearInterval(_videoProgressInterval); _videoProgressInterval = null; }
+      if (platform === 'youtube' && _ytPlayer) {
+        _videoProgressInterval = setInterval(() => {
+          const fill = videoBadge.querySelector('.vb-progress-fill');
+          if (!fill || !_ytPlayer || typeof _ytPlayer.getCurrentTime !== 'function') return;
+          try {
+            const t = _ytPlayer.getCurrentTime();
+            const d = _ytPlayer.getDuration();
+            if (d > 0) fill.style.width = Math.min(100, (t / d) * 100) + '%';
+          } catch (_) {}
+        }, 250);
+      }
       videoBadge.classList.remove('compact');
-      videoBadge.className = 'video-badge visible' + (isOfficial ? ' official' : '');
+      if (tierLabel === 'Visualizer' || isOfficial) videoBadge.classList.add('official'); else videoBadge.classList.remove('official');
       clearTimeout(videoBadgeCompactTimer);
-      videoBadgeCompactTimer = setTimeout(() => videoBadge.classList.add('compact'), 5000);
+      videoBadgeCompactTimer = setTimeout(() => {
+        videoBadge.classList.add('compact');
+        /* Run overflow check when shrink transition ends (most reliable) */
+        const onTransitionEnd = (e) => {
+          if (e.target !== videoBadge || e.propertyName !== 'max-width') return;
+          videoBadge.removeEventListener('transitionend', onTransitionEnd);
+          requestAnimationFrame(() => requestAnimationFrame(checkBadgeOverflow));
+        };
+        videoBadge.addEventListener('transitionend', onTransitionEnd);
+        /* Fallback in case transitionend doesn't fire (e.g. already at final size) */
+        setTimeout(() => {
+          videoBadge.removeEventListener('transitionend', onTransitionEnd);
+          requestAnimationFrame(() => requestAnimationFrame(checkBadgeOverflow));
+        }, 800);
+      }, 5000);
     }
 
     function hideVideoBadge() {
       clearTimeout(videoBadgeCompactTimer);
       videoBadgeCompactTimer = null;
+      if (_videoProgressInterval) { clearInterval(_videoProgressInterval); _videoProgressInterval = null; }
       videoBadge.className = 'video-badge';
       videoBadge.innerHTML = '';
+      videoBadge.style.display = '';
     }
 
     
@@ -2721,8 +3172,8 @@
       iframe.allowFullscreen = true;
       iframe.addEventListener('load', () => {
         console.log('[Video] Loaded (' + (platform || 'video') + ')');
-        /* Delay until video has likely started playing, then fade in */
-        setTimeout(() => document.body.classList.add('video-ready'), 1200);
+        /* Can't detect play state from raw iframe — conservative delay before revealing */
+        setTimeout(() => document.body.classList.add('video-ready'), 2800);
       });
       videoBg.innerHTML = '';
       videoBg.appendChild(iframe);
@@ -2731,10 +3182,17 @@
 
     let _ytPlayer = null;
     let _onYtError = null;
+    let _embedTierLabel = null;
+    let _currentSearchTierLabel = null;
 
-    function embedYouTube(videoId, startSec, videoTitle, channel, onUnavailable, onPlaying) {
+    function embedYouTube(videoId, startSec, videoTitle, channel, onUnavailable, onPlaying, tierLabel) {
+      /* Capture tier for badge at embed time so async onStateChange gets correct value */
+      const hasTier = tierLabel != null && String(tierLabel).trim() !== '';
+      const tierForBadge = hasTier ? String(tierLabel).trim() : (_embedTierLabel || _currentSearchTierLabel || null);
+      if (hasTier) _embedTierLabel = String(tierLabel).trim();
       _onYtError = onUnavailable || null;
       document.body.classList.remove('video-ready');
+      let played = false;
       const div = document.createElement('div');
       div.id = 'yt-player-' + Date.now();
       videoBg.innerHTML = '';
@@ -2743,24 +3201,53 @@
 
       if (_ytPlayer) { try { _ytPlayer.destroy(); } catch(_) {} _ytPlayer = null; }
 
-      _ytPlayer = new YT.Player(div.id, {
-        videoId: videoId,
+      const startSecFloor = Math.max(0, Math.floor(startSec || 0));
+      const useRandomStart = startSecFloor > 0;
+      /* When random start: create empty player, cue at position in onReady (avoids loading from 0) */
+      const playerConfig = {
+        height: '100%',
+        width: '100%',
         playerVars: {
-          autoplay: 1, mute: 1, controls: 0, loop: 1, playlist: videoId,
+          autoplay: useRandomStart ? 0 : 1,
+          mute: 1, controls: 0, loop: 1, playlist: videoId,
           modestbranding: 1, iv_load_policy: 3, disablekb: 1, playsinline: 1,
-          rel: 0, vq: 'hd1080', start: Math.max(0, Math.floor(startSec || 0))
+          rel: 0, vq: 'hd1080', start: useRandomStart ? 0 : startSecFloor
         },
         events: {
           onReady: function(e) {
             console.log('[Video] YouTube player ready: ' + videoId);
-            /* Fallback: if play state never fires, show after 5s */
+            if (useRandomStart && e.target) {
+              console.log('[Video] Random start: cueing at ' + Math.floor(startSecFloor / 60) + 'm ' + (startSecFloor % 60) + 's');
+              /* cueVideoById loads at position; playVideo() starts. Fallback: seekTo when playing in case cue failed */
+              window._pendingSeek = { player: e.target, start: startSecFloor };
+              try {
+                e.target.cueVideoById({ videoId: videoId, startSeconds: startSecFloor });
+                e.target.playVideo();
+              } catch (_) {
+                try { e.target.seekTo(startSecFloor, true); e.target.playVideo(); } catch (__) {}
+              }
+            }
+            /* Fallback: if video never starts playing, treat as failed after 6s */
             setTimeout(() => {
-              if (!document.body.classList.contains('video-ready')) document.body.classList.add('video-ready');
-            }, 5000);
+              if (!played && _onYtError) {
+                console.warn('[Video] YouTube no play after 6s, treating as failed: ' + videoId);
+                const cb = _onYtError; _onYtError = null; cb();
+              }
+            }, 6000);
           },
           onStateChange: function(e) {
             if (e.data === 1) {
+              /* Fallback: seekTo when playing (cueVideoById in onReady sometimes ignored) */
+              if (useRandomStart && e.target && e.target.seekTo) {
+                try {
+                  const cur = e.target.getCurrentTime ? e.target.getCurrentTime() : 0;
+                  if (cur < startSecFloor * 0.9) e.target.seekTo(startSecFloor, true);
+                } catch (_) {}
+              }
+              played = true;
+              _onYtError = null;
               document.body.classList.add('video-ready');
+              showVideoBadge(videoTitle, channel, 'youtube', tierForBadge);
               if (onPlaying) onPlaying();
             }
           },
@@ -2769,35 +3256,209 @@
             if (_onYtError) { const cb = _onYtError; _onYtError = null; cb(); }
           }
         }
-      });
-      showVideoBadge(videoTitle, channel, 'youtube');
+      };
+      if (!useRandomStart) playerConfig.videoId = videoId;
+      try {
+        _ytPlayer = new YT.Player(div.id, playerConfig);
+      } catch (err) {
+        console.warn('[Video] YouTube player init failed:', err?.message);
+        if (onUnavailable) onUnavailable();
+      }
     }
 
-    function embedDailymotion(videoId, videoTitle, channel) {
-      const src = 'https://www.dailymotion.com/embed/video/' + videoId +
-        '?autoplay=1&mute=1&controls=false&queue-enable=false&loop=true' +
-        '&sharing-enable=false&ui-logo=false&ui-start-screen-info=false';
-      showVideoIframe(src, 'Dailymotion');
-      showVideoBadge(videoTitle, channel, 'dailymotion');
+    function getPlaylistId(url) {
+      if (!url || typeof url !== 'string') return '';
+      const m = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+      return m ? m[1] : '';
+    }
+
+    const DJ_LIVE_PLAYLIST_ID = 'PLxbKvePtgSDd51Op40yEFnH5mhbQzlWGW';
+    const DJ_LIVE_PLAYLIST_URL = 'https://www.youtube.com/playlist?list=' + DJ_LIVE_PLAYLIST_ID;
+
+    /** Returns effective fallback playlist ID: DJ Live when source is djlive or custom is empty/invalid, else custom. */
+    function getEffectiveFallbackPlaylistId() {
+      if (settings.fallbackPlaylistSource === 'custom') {
+        const pid = getPlaylistId(settings.fallbackPlaylistUrl || '');
+        if (pid) return pid;
+      }
+      return DJ_LIVE_PLAYLIST_ID;
+    }
+
+    function playFromFallbackPlaylist(forceDefaultPlaylist) {
+      const playlistId = forceDefaultPlaylist ? DJ_LIVE_PLAYLIST_ID : getEffectiveFallbackPlaylistId();
+      if (!playlistId) { playAmbientVideo(); return; }
+      stopAmbientCycle();
+      document.body.classList.remove('video-ready');
+      const shuffle = !!settings.fallbackPlaylistShuffle;
+      if (typeof YT !== 'undefined' && YT.Player) {
+        if (_ytPlayer) { try { _ytPlayer.destroy(); } catch(_) {} _ytPlayer = null; }
+        const div = document.createElement('div');
+        div.id = 'yt-playlist-' + Date.now();
+        videoBg.innerHTML = '';
+        videoBg.appendChild(div);
+        document.body.classList.add('has-video');
+        _ytPlayer = new YT.Player(div.id, {
+          width: '100%',
+          height: '100%',
+          playerVars: {
+            listType: 'playlist',
+            list: playlistId,
+            index: 0,
+            autoplay: shuffle ? 0 : 1,
+            mute: 1,
+            controls: 0,
+            modestbranding: 1,
+            playsinline: 1,
+            rel: 0
+          },
+          events: {
+            onReady: function(e) {
+              appendDebugLog({ tierLabel: 'Fallback playlist', platform: 'yt', status: shuffle ? 'loading playlist (shuffle)' : 'loading first video', detail: '' });
+              if (shuffle) {
+                const doShuffle = () => {
+                  try {
+                    const pl = e.target.getPlaylist?.();
+                    const plLen = Array.isArray(pl) ? pl.length : 200;
+                    const randomIdx = Math.min(Math.floor(Math.random() * Math.max(plLen, 1)), Math.max(0, plLen - 1));
+                    if (e.target.setShuffle) e.target.setShuffle(true);
+                    if (e.target.playVideoAt) {
+                      e.target.playVideoAt(randomIdx);
+                    } else if (e.target.loadPlaylist) {
+                      e.target.loadPlaylist({ list: playlistId, listType: 'playlist', index: randomIdx, startSeconds: 0 });
+                    }
+                    e.target.playVideo();
+                  } catch (_) { e.target.playVideo(); }
+                };
+                /* Playlist must load before setShuffle works reliably */
+                setTimeout(doShuffle, 3500);
+              } else {
+                e.target.playVideo();
+              }
+              /* Only add video-ready in onStateChange when e.data === 1 (playing) */
+            },
+            onStateChange: function(e) {
+              if (e.data === 1) {
+                document.body.classList.add('video-ready');
+                try {
+                  const d = e.target.getVideoData();
+                  if (d && d.title) {
+                    appendDebugLog({ type: 'playlist-playing', title: d.title, author: d.author || d.video_owner });
+                    showVideoBadge(d.title, d.author || d.video_owner || '', 'youtube', 'Playlist');
+                  } else {
+                    showVideoBadge('Fallback playlist' + (shuffle ? ' (shuffled)' : ''), '', 'youtube', 'Playlist');
+                  }
+                } catch (_) {
+                  showVideoBadge('Fallback playlist' + (shuffle ? ' (shuffled)' : ''), '', 'youtube', 'Playlist');
+                }
+              }
+            },
+            onError: function(e) {
+              const code = e.data;
+              const isUnembeddable = code === 150 || code === 101;
+              try {
+                const d = e.target.getVideoData();
+                appendDebugLog({ type: 'playlist-error', code: code, title: d?.title, videoId: d?.video_id });
+              } catch (_) {
+                appendDebugLog({ type: 'playlist-error', code: code, videoId: 'unknown' });
+              }
+            }
+          }
+        });
+      } else {
+        const idxParam = shuffle ? '&index=' + Math.floor(Math.random() * 100) : '';
+        const src = 'https://www.youtube.com/embed/videoseries?list=' + playlistId + idxParam + '&autoplay=1&mute=1&controls=0&modestbranding=1';
+        showVideoIframe(src, 'YouTube Playlist');
+        /* showVideoIframe adds video-ready in its load handler after delay; no play-state detection, so badge stays on search status */
+      }
+      ambientCycleTimer = setTimeout(() => {
+        if (videoForKey && document.body.classList.contains('has-video')) playFromFallbackPlaylist();
+      }, 120000);
     }
 
     let _searchArtist = '';
     let _searchTitle = '';
+    let _searchDurationMs = null;
+
+    /** Extract main/primary artist when track has multiple (e.g. "A, B", "A feat. B", "A & B").
+     * If title contains "remix", the remix artist (from parens/brackets or before "remix"/"mix") is preferred. */
+    function getMainArtist(artist, title) {
+      if (!artist || typeof artist !== 'string') return '';
+      if (title && /\bremix\b|\bmix\b/i.test(title)) {
+        /* Extract remix artist from "(Artist Remix)", "[Artist Remix]", " - Artist Remix", etc. */
+        const m = title.match(/[(\[]([^)\]]+?)\s*(?:remix|mix)\s*[)\]]|[-–—]\s*([^\-–—]+?)\s*(?:remix|mix)\s*$/i)
+          || title.match(/([a-zA-Z0-9\s\.''-]+?)\s+(?:remix|mix)\s*$/i);
+        const remixArtist = m ? (m[1] || m[2] || m[0]).trim() : null;
+        if (remixArtist && remixArtist.length > 1) return remixArtist;
+      }
+      const main = artist.split(/\s*[,&]+\s*|\s+feat\.?\s*|\s+ft\.?\s*|\s+and\s*|\s+x\s+|\s*\/\s*|\s+with\s+/i)[0]?.trim();
+      return main || artist;
+    }
 
     function normalize(s) { return (s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+    /** Words that suggest TV show/talk show, not music artist — penalize these channels (match substring, not just word) */
+    const CHANNEL_SHOW_PENALTY = /tonight|latenight|comedian|comedy|(?:tonight|late)[\s_-]?show|the[\s_-]?show|fallontonight/i;
+    /** Score how well channel name matches artist; higher = better. Prefers exact/prefix over substring. */
+    function channelMatchScore(artist, channelName) {
+      const a = normalize(artist);
+      const c = normalize(channelName || '');
+      const raw = (channelName || '').toLowerCase();
+      if (!a || !c) return 0;
+      let score = 0;
+      if (a === c) score = 100;
+      else if (c.startsWith(a)) score = 90;
+      else if (a.startsWith(c)) score = 85;
+      else if (a.includes(c)) score = 75;
+      else if (c.includes(a)) {
+        const ratio = a.length / Math.max(c.length, 1);
+        score = Math.max(20, Math.round(50 * ratio));
+      }
+      /* Penalize TV/show channels — test both raw and normalized (handles like fallontonight) */
+      if (score > 0 && (CHANNEL_SHOW_PENALTY.test(raw) || CHANNEL_SHOW_PENALTY.test(c))) score = Math.max(0, score - 85);
+      return score;
+    }
+
+    /** Topic channels (e.g. "Artist - Topic", "Player Dave - Topic") are auto-generated by YouTube, not official artist channels */
+    function isTopicChannel(nameOrHandle) {
+      if (!nameOrHandle || typeof nameOrHandle !== 'string') return false;
+      return /\btopic\b/i.test(nameOrHandle) || /\s[-–—]\s*Topic$/i.test(nameOrHandle);
+    }
+
+    /** YouTube often splits channel names across runs (e.g. "Artist" + " - Topic"); join all run text */
+    function getFullTextFromRuns(obj) {
+      if (!obj) return '';
+      if (typeof obj === 'string') return obj;
+      const runs = obj?.runs;
+      if (!Array.isArray(runs)) return obj?.simpleText || '';
+      return runs.map(r => r?.text || '').join('');
+    }
 
     function isOfficialChannel(v) {
       const ch = (v['owner.screenname'] || '').toLowerCase();
       if (!ch || !_searchArtist) return false;
+      if (isTopicChannel(ch)) return false;
       const a = normalize(_searchArtist);
       const c = normalize(ch);
       return c.includes(a) || a.includes(c) || ch.includes('vevo');
     }
 
+    /** Only accept video if it positively matches official channel. Require channelId, handle, or exact owner-name match. No loose "name contains artist" fallback. */
+    function isFromOfficialChannel(v, oc) {
+      if (!oc) return false;
+      if (oc.channelId && v.channelId && v.channelId === oc.channelId) return true;
+      const h = (oc.handle || '').trim();
+      if (h && v.handle && normalize(v.handle) === normalize(h)) return true;
+      /* Fallback when channelId/handle missing in search result: exact owner name match (still rejects Topic etc.) */
+      const owner = (v['owner.screenname'] || '').trim();
+      if (oc.name && owner && normalize(owner) === normalize((oc.name || '').trim()) && !isTopicChannel(owner)) return true;
+      return false;
+    }
+
     function titleContains(v, text) {
       const t = (v.title || '').toLowerCase();
+      const tNorm = normalize(t);
       const parts = text.toLowerCase().split(/[\s,&]+/).filter(p => p.length > 2);
-      return parts.length > 0 && parts.every(p => t.includes(p));
+      return parts.length > 0 && parts.every(p => tNorm.includes(normalize(p)) || t.includes(p));
     }
 
     function isArtistLive(v) {
@@ -2853,8 +3514,8 @@
       if (!items?.length) return null;
       const valid = items.filter(v => rankVideo(v) <= maxRank);
       if (!valid.length) return null;
-      const prefersOfficial = tierLabel === 'Official Music Video';
-      const isLiveTier = tierLabel === 'Live / Concert';
+      const prefersOfficial = tierLabel === 'Visualizer';
+      const isLiveTier = tierLabel === 'Live' || tierLabel === 'Live (fan)';
       const hasOfficialInTitle = v => /official\s*(music\s*)?video|official\s*mv/.test((v.title || '').toLowerCase());
       const hasLiveInTitle = v => /\blive\b|\bconcert\b|\bperformanc|\bfestival\b/.test((v.title || '').toLowerCase());
       const hasFullSet = v => /\b(full\s*set|full\s*concert|complete\s*set|full\s*show|full\s*live)\b/.test((v.title || '').toLowerCase());
@@ -2873,6 +3534,13 @@
           const aFull = hasFullSet(a), bFull = hasFullSet(b);
           if (aFull && !bFull) return -1;
           if (!aFull && bFull) return 1;
+        }
+        if (isLiveTier && _searchDurationMs && a.duration && b.duration) {
+          const minSec = Math.floor(_searchDurationMs / 1000);
+          const aOk = a.duration >= minSec, bOk = b.duration >= minSec;
+          if (aOk && !bOk) return -1;
+          if (!aOk && bOk) return 1;
+          if (aOk && bOk && a.duration !== b.duration) return b.duration - a.duration;
         }
         return ra - rb;
       })[0];
@@ -2882,8 +3550,8 @@
       if (!items?.length) return [];
       const valid = items.filter(v => rankVideo(v) <= maxRank);
       if (!tierLabel) return valid.sort((a, b) => rankVideo(a) - rankVideo(b));
-      const isLiveTier = tierLabel === 'Live / Concert';
-      const prefersOfficial = tierLabel === 'Official Music Video';
+      const isLiveTier = tierLabel === 'Live' || tierLabel === 'Live (fan)';
+      const prefersOfficial = tierLabel === 'Visualizer';
       const hasOfficialInTitle = v => /official\s*(music\s*)?video|official\s*mv/.test((v.title || '').toLowerCase());
       const hasLiveInTitle = v => /\blive\b|\bconcert\b|\bperformanc|\bfestival\b/.test((v.title || '').toLowerCase());
       const hasFullSet = v => /\b(full\s*set|full\s*concert|complete\s*set|full\s*show|full\s*live)\b/.test((v.title || '').toLowerCase());
@@ -2903,14 +3571,29 @@
           if (aFull && !bFull) return -1;
           if (!aFull && bFull) return 1;
         }
+        if (isLiveTier && _searchDurationMs && a.duration && b.duration) {
+          const minSec = Math.floor(_searchDurationMs / 1000);
+          const aOk = a.duration >= minSec, bOk = b.duration >= minSec;
+          if (aOk && !bOk) return -1;
+          if (!aOk && bOk) return 1;
+          if (aOk && bOk && a.duration !== b.duration) return b.duration - a.duration;
+        }
         return ra - rb;
       });
     }
 
-    function tryEmbedYt(candidates, idx, startSec, key, onAllFailed) {
+    function tryEmbedYt(candidates, idx, startSec, key, tierLabel, onAllFailed) {
       if (videoForKey !== key) return;
+      /* When option enabled, skip to random point in long live sets (Live or Live fan tier) */
+      let actualStart = startSec;
+      const useRandomStart = (settings.randomLiveStart || !!document.getElementById('randomLiveStartCb')?.checked) && (tierLabel === 'Live' || tierLabel === 'Live (fan)');
+      if (useRandomStart) {
+        actualStart = Math.floor(Math.random() * 3000); /* 0–50 min */
+        console.log('[Video] Random start: ' + Math.floor(actualStart / 60) + 'm ' + (actualStart % 60) + 's (0–50 min)');
+      }
       if (idx >= candidates.length) {
         console.log('[Video] All YouTube candidates unavailable, falling back');
+        appendDebugLog({ type: 'fallback', status: 'All candidates unavailable' });
         if (onAllFailed) onAllFailed();
         return;
       }
@@ -2918,226 +3601,597 @@
       const videoData = { platform: 'youtube', id: v.id, title: v.title, channel: v['owner.screenname'] || '', url: 'https://www.youtube.com/watch?v=' + v.id, thumb: 'https://img.youtube.com/vi/' + v.id + '/hqdefault.jpg' };
       currentSongVideo = { key, data: videoData };
       console.log('[Video] YouTube trying ' + (idx + 1) + '/' + candidates.length + ': ' + v.title);
-      embedYouTube(v.id, startSec, v.title, v['owner.screenname'], () => {
+      embedYouTube(v.id, actualStart, v.title, v['owner.screenname'], () => {
         console.log('[Video] Unavailable, trying next...');
-        tryEmbedYt(candidates, idx + 1, startSec, key, onAllFailed);
-      }, () => { if (videoForKey === key) updateHistoryWithVideo(key, videoData); });
+        appendDebugLog({ type: 'unembeddable', title: v.title, id: v.id, idx: idx + 1, total: candidates.length });
+        tryEmbedYt(candidates, idx + 1, startSec, key, tierLabel, onAllFailed);
+      }, () => {
+        appendDebugLog({ type: 'loaded', title: v.title, idx: idx + 1, total: candidates.length });
+        if (videoForKey === key) updateHistoryWithVideo(key, videoData);
+      }, tierLabel);
     }
 
-    /* ── YouTube search via local proxy (run: node yt-proxy.js or python3 yt-proxy.py) ── */
-    const YT_PROXY = 'http://localhost:3001';
-    let ytProxyOk = null;
+    /* ── YouTube search: client-side via CORS proxy — no Node/server needed ── */
+    const CORS_PROXY = 'https://corsproxy.io/?url=';
+    const CORS_PROXIES = [
+      (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+      (u) => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+      (u) => 'https://corsproxy.org/?url=' + encodeURIComponent(u)
+    ];
+    let ytSearchOk = null;
+
+    function parseYtInitialData(html) {
+      const start = html.indexOf('var ytInitialData = ');
+      if (start === -1) return null;
+      let i = start + 'var ytInitialData = '.length;
+      if (html[i] !== '{') return null;
+      let depth = 1;
+      const begin = i;
+      for (i++; i < html.length && depth > 0; i++) {
+        const c = html[i];
+        if (c === '{') depth++;
+        else if (c === '}') depth--;
+      }
+      if (depth !== 0) return null;
+      try {
+        return JSON.parse(html.slice(begin, i));
+      } catch (_) { return null; }
+    }
+
+    /** Path: videoRenderer.shortBylineText.runs[].navigationEndpoint.browseEndpoint.browseId */
+    function getChannelFromVideoRenderer(vr) {
+      const runs = vr?.shortBylineText?.runs || vr?.longBylineText?.runs || [];
+      for (const run of runs) {
+        const ep = run?.navigationEndpoint?.browseEndpoint;
+        if (!ep) continue;
+        const id = ep.browseId;
+        if (id && /^UC[\w-]{20,}$/.test(id)) {
+          const handle = ep.canonicalBaseUrl?.replace(/^\/@?/, '') || '';
+          return { channelId: id, handle };
+        }
+      }
+      return { channelId: '', handle: '' };
+    }
+
+    function extractChannelsFromYtData(obj, out) {
+      if (!obj || typeof obj !== 'object') return;
+      if (obj.channelRenderer) {
+        const cr = obj.channelRenderer;
+        const title = getFullTextFromRuns(cr.title) || '';
+        const handle = cr.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl?.replace(/^\/@?/, '') || '';
+        if (title || cr.channelId) out.push({ title, handle, channelId: cr.channelId || '' });
+        return;
+      }
+      if (Array.isArray(obj)) { for (const x of obj) extractChannelsFromYtData(x, out); return; }
+      for (const k of Object.keys(obj)) extractChannelsFromYtData(obj[k], out);
+    }
+
+    async function findOfficialChannel(artist, key, title) {
+      try {
+        /* Use artist + title when artist is short/ambiguous to favor music artist over celebrity (e.g. Fallon vs Jimmy Fallon) */
+        const ambiguous = !artist || artist.length < 12 || !/\s/.test(artist);
+        const searchQ = (title && ambiguous) ? (artist + ' ' + title) : artist;
+        const target = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(searchQ);
+        const proxyUrl = CORS_PROXY + encodeURIComponent(target);
+        const res = await fetch(proxyUrl, {
+          signal: AbortSignal.timeout(8000),
+          headers: { 'Accept': 'text/html' }
+        });
+        if (videoForKey !== key || !res.ok) return { found: false, name: '', handle: '', channelId: '', channelsSeen: [] };
+        const html = await res.text();
+        const data = parseYtInitialData(html);
+        if (!data) return { found: false, name: '', handle: '', channelId: '', channelsSeen: [] };
+        const channels = [];
+        extractChannelsFromYtData(data, channels);
+        const noTopic = channels.filter(c => !isTopicChannel(c.title || c.handle));
+        const channelsToUse = noTopic; /* Never fall back to Topic channels */
+        let seen = [...new Set(channelsToUse.flatMap(c => [c.handle, c.title].filter(Boolean)))];
+        const pickBestChannel = (list, getName) => {
+          if (!list?.length) return null;
+          let best = list[0], bestScore = 0;
+          for (const x of list) {
+            const name = getName(x);
+            const score = channelMatchScore(artist, name);
+            if (score > bestScore) { best = x; bestScore = score; }
+          }
+          return bestScore >= 50 ? best : null;
+        };
+        let first = pickBestChannel(channelsToUse, c => c.title || c.handle);
+        if (!first) {
+          /* Fallback: no channel results — get channel from video search (path: shortBylineText.runs[].navigationEndpoint.browseEndpoint.browseId) */
+          const videos = await ytSearch(searchQ, key);
+          if (videos?.length) {
+            const noTopicVideos = videos.filter(v => !isTopicChannel(v['owner.screenname'] || ''));
+            const videosToUse = noTopicVideos; /* Never fall back to Topic channel owners */
+            seen = [...new Set(videosToUse.map(v => v['owner.screenname']).filter(Boolean))];
+            const match = pickBestChannel(videosToUse, v => v['owner.screenname'] || '');
+            first = match ? {
+              title: match['owner.screenname'],
+              handle: match.handle || '',
+              channelId: match.channelId || ''
+            } : null;
+          } else first = null;
+        }
+        const name = first?.title || first?.handle || '';
+        const handle = first?.handle || '';
+        const channelId = first?.channelId || '';
+        return { found: !!first, name, handle, channelId, channelsSeen: seen };
+      } catch (_) { return { found: false, name: '', handle: '', channelId: '', channelsSeen: [] }; }
+    }
 
     async function ytSearch(query, key) {
       try {
-        const res = await fetch(
-          YT_PROXY + '/?q=' + encodeURIComponent(query),
-          { signal: AbortSignal.timeout(6000) }
-        );
+        const target = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query);
+        const proxyUrl = CORS_PROXY + encodeURIComponent(target);
+        const res = await fetch(proxyUrl, {
+          signal: AbortSignal.timeout(10000),
+          headers: { 'Accept': 'text/html' }
+        });
         if (videoForKey !== key) return null;
         if (!res.ok) return null;
-        const data = await res.json();
-        if (!Array.isArray(data) || !data.length) return null;
-        if (!ytProxyOk) { ytProxyOk = true; console.log('[YT] Proxy connected'); }
-        return data.map(v => ({
-          id: v.id,
-          title: v.title || '',
-          'owner.screenname': v.channel || '',
-          duration: 0
-        }));
+        const html = await res.text();
+        const data = parseYtInitialData(html);
+        if (!data) return null;
+        const sections = data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents ?? [];
+        const results = [];
+        for (const sec of sections) {
+          for (const it of (sec.itemSectionRenderer?.contents || [])) {
+            const vr = it.videoRenderer;
+            if (!vr?.videoId) continue;
+            const ch = getChannelFromVideoRenderer(vr);
+            const lenText = vr.lengthText?.simpleText || (vr.lengthText?.runs?.[0]?.text);
+            results.push({
+              id: vr.videoId,
+              title: vr.title?.runs?.[0]?.text || vr.title?.simpleText || '',
+              'owner.screenname': getFullTextFromRuns(vr.ownerText || vr.shortBylineText) || '',
+              duration: parseYtDuration(lenText || ''),
+              channelId: ch.channelId || undefined,
+              handle: ch.handle || undefined
+            });
+          }
+        }
+        if (!results.length) return null;
+        if (!ytSearchOk) { ytSearchOk = true; console.log('[YT] Search ready (no server needed)'); }
+        return results.slice(0, 40);
       } catch (e) {
-        if (ytProxyOk !== false) {
-          ytProxyOk = false;
-          console.warn('[YT] Proxy not running — start it with: node yt-proxy.js  (or python3 yt-proxy.py)');
-          showError('YouTube proxy not running. Open a terminal and run: node yt-proxy.js');
+        if (ytSearchOk !== false) {
+          ytSearchOk = false;
+          console.warn('[YT] Search failed:', e?.message);
+          showError('YouTube search failed. Check network or try again.');
         }
         return null;
       }
     }
 
-    async function dmSearch(query, key) {
-      const res = await fetch(
-        'https://api.dailymotion.com/videos?search=' + encodeURIComponent(query) +
-        '&limit=15&fields=id,title,duration,owner.screenname',
-        { signal: AbortSignal.timeout(6000) }
-      );
-      if (videoForKey !== key || !res.ok) return null;
-      const data = await res.json();
-      return data.list?.length ? data.list : null;
+
+    function extractVideoRenderersFromYtData(obj, out) {
+      if (!obj || typeof obj !== 'object') return;
+      const pushVideo = (vr) => {
+        const title = vr.title?.runs?.[0]?.text || vr.title?.simpleText || '';
+        const owner = getFullTextFromRuns(vr.ownerText || vr.shortBylineText) || '';
+        const lenText = vr.lengthText?.simpleText || (vr.lengthText?.runs?.[0]?.text);
+        out.push({ id: vr.videoId, title, 'owner.screenname': owner, duration: parseYtDuration(lenText || '') });
+      };
+      const pushById = (id, title, owner) => {
+        if (id) out.push({ id, title: title || '', 'owner.screenname': owner || '', duration: 0 });
+      };
+      if (obj.videoRenderer?.videoId) { pushVideo(obj.videoRenderer); return; }
+      if (obj.gridVideoRenderer?.videoId) { pushVideo(obj.gridVideoRenderer); return; }
+      if (obj.playlistVideoRenderer?.videoId) {
+        const pv = obj.playlistVideoRenderer;
+        pushVideo({ videoId: pv.videoId, title: pv.title, ownerText: pv.shortBylineText, lengthText: pv.lengthText });
+        return;
+      }
+      const reel = obj.reelItemRenderer?.navigationEndpoint?.reelWatchEndpoint;
+      if (reel?.videoId) {
+        pushById(reel.videoId, obj.reelItemRenderer?.headline?.simpleText || obj.reelItemRenderer?.headline?.runs?.[0]?.text, '');
+        return;
+      }
+      if (obj.sectionListRenderer?.contents) {
+        for (const sec of obj.sectionListRenderer.contents) {
+          const innerItems = sec?.itemSectionRenderer?.contents || [];
+          for (const it of innerItems) {
+            extractVideoRenderersFromYtData(it, out);
+          }
+        }
+        return;
+      }
+      if (Array.isArray(obj)) { for (const x of obj) extractVideoRenderersFromYtData(x, out); return; }
+      for (const k of Object.keys(obj)) extractVideoRenderersFromYtData(obj[k], out);
     }
 
-    async function searchAndPlayVideo(title, artist, startSec) {
-      if (settings.bgMode === 'visualizer') return;
+    function extractChannelVideosFromYtData(data) {
+      const videos = [];
+      const pushVideo = (vr) => {
+        if (!vr?.videoId) return;
+        const title = vr.title?.runs?.[0]?.text || vr.title?.simpleText || '';
+        const owner = getFullTextFromRuns(vr.ownerText || vr.shortBylineText) || '';
+        const lenText = vr.lengthText?.simpleText || (vr.lengthText?.runs?.[0]?.text);
+        videos.push({ id: vr.videoId, title, 'owner.screenname': owner, duration: parseYtDuration(lenText || '') });
+      };
+      const browse = data?.contents?.twoColumnBrowseResultsRenderer || data?.contents?.singleColumnBrowseResultsRenderer;
+      const tabs = browse?.tabs;
+      if (Array.isArray(tabs)) {
+        for (const tab of tabs) {
+          const content = tab?.tabRenderer?.content;
+          const items = content?.richGridRenderer?.contents;
+          if (!Array.isArray(items)) continue;
+          for (const item of items) {
+            const inner = item?.richItemRenderer?.content;
+            if (inner?.videoRenderer) pushVideo(inner.videoRenderer);
+            else if (inner?.gridVideoRenderer) pushVideo(inner.gridVideoRenderer);
+            else if (inner?.reelItemRenderer) {
+              const vid = inner.reelItemRenderer?.navigationEndpoint?.reelWatchEndpoint?.videoId;
+              if (vid) videos.push({ id: vid, title: inner.reelItemRenderer?.headline?.simpleText || '', 'owner.screenname': '', duration: 0 });
+            }
+            if (item?.sectionListRenderer?.contents) {
+              for (const sec of item.sectionListRenderer.contents) {
+                for (const it of (sec?.itemSectionRenderer?.contents || [])) {
+                  extractVideoRenderersFromYtData(it, videos);
+                }
+              }
+            }
+          }
+        }
+      }
+      if (videos.length) return videos;
+      extractVideoRenderersFromYtData(data, videos);
+      return videos;
+    }
 
-      const useYT = settings.bgMode === 'youtube';
-      const useBoth = settings.bgMode === 'both';
-      const platform = useBoth ? 'YT+DM' : (useYT ? 'YouTube' : 'Dailymotion');
-      const searchFn = useYT ? ytSearch : dmSearch;
+    function getChannelIdFromPageData(data) {
+      const id = data?.metadata?.channelMetadataRenderer?.externalId
+        || data?.header?.c4HeaderRenderer?.channelId
+        || data?.contents?.twoColumnBrowseResultsRenderer?.header?.c4HeaderRenderer?.channelId;
+      return (id && /^UC[\w-]{20,}$/.test(id)) ? id : '';
+    }
+
+    async function fetchAndExtractVideos(pageUrl, key) {
+      for (const toProxyUrl of CORS_PROXIES) {
+        if (videoForKey !== key) return null;
+        try {
+          const proxyUrl = toProxyUrl(pageUrl);
+          const res = await fetch(proxyUrl, {
+            signal: AbortSignal.timeout(10000),
+            headers: { 'Accept': 'text/html', 'Accept-Language': 'en' }
+          });
+          if (videoForKey !== key || !res.ok) continue;
+          const html = await res.text();
+          const data = parseYtInitialData(html);
+          if (!data) continue;
+          const videos = extractChannelVideosFromYtData(data);
+          return { data, videos };
+        } catch (_) { /* try next proxy */ }
+      }
+      return null;
+    }
+
+    async function ytChannelVideos(handleOrChannelId, key) {
+      if (!handleOrChannelId || typeof handleOrChannelId !== 'string') return [];
+      const clean = handleOrChannelId.replace(/^@/, '').trim();
+      const isChannelId = /^UC[a-zA-Z0-9_-]{20,}$/.test(clean);
+      const url = isChannelId
+        ? 'https://www.youtube.com/channel/' + clean + '/videos'
+        : 'https://www.youtube.com/@' + clean + '/videos';
+      try {
+        if ((window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
+          const params = isChannelId ? { channelId: clean } : { handle: clean };
+          const apiUrl = '/api/youtube/channel?' + new URLSearchParams(params);
+          const apiRes = await fetch(apiUrl, { signal: AbortSignal.timeout(10000) });
+          if (videoForKey !== key) return [];
+          if (apiRes.ok) {
+            const parsed = await apiRes.json();
+            const videos = Array.isArray(parsed) ? parsed.map(v => ({ ...v, duration: v.duration || 0 })) : [];
+            if (videoForKey === key && searchDebugBox && settings.searchDebug) {
+              appendDebugLog({ type: 'channel-videos-fetch', url: apiUrl, status: apiRes.status, videoCount: videos.length });
+            }
+            if (videos.length) return videos.slice(0, 100);
+          }
+          /* server returned empty or failed — fall through to CORS proxy */
+        }
+        /* Try each CORS proxy — works standalone without server */
+        const result = await fetchAndExtractVideos(url, key);
+        if (result && videoForKey === key) {
+          const { data, videos } = result;
+          if (videoForKey === key && searchDebugBox && settings.searchDebug) {
+            appendDebugLog({ type: 'channel-videos-fetch', url, status: 200, videoCount: videos.length });
+          }
+          if (videos.length) return videos.slice(0, 100);
+          /* Fallback: try channel uploads playlist (UU + channelId) */
+          let channelId = isChannelId ? clean : getChannelIdFromPageData(data);
+          if (!channelId && !isChannelId) {
+            const mainUrl = 'https://www.youtube.com/@' + clean;
+            const mainResult = await fetchAndExtractVideos(mainUrl, key);
+            channelId = mainResult?.data ? getChannelIdFromPageData(mainResult.data) : '';
+          }
+          if (channelId && /^UC[\w-]{20,}$/.test(channelId)) {
+            const playlistId = 'UU' + channelId.slice(2);
+            const playlistUrl = 'https://www.youtube.com/playlist?list=' + playlistId;
+            const plResult = await fetchAndExtractVideos(playlistUrl, key);
+            if (plResult?.videos?.length && videoForKey === key) {
+              if (searchDebugBox && settings.searchDebug) {
+                appendDebugLog({ type: 'channel-videos-fetch', url: playlistUrl, status: 200, videoCount: plResult.videos.length, source: 'playlist' });
+              }
+              return plResult.videos.slice(0, 100);
+            }
+          }
+        }
+        return [];
+      } catch (e) {
+        /* Retry with proxy chain on outer failure */
+        for (const toProxyUrl of CORS_PROXIES) {
+          if (videoForKey !== key) return [];
+          try {
+            const proxyUrl = toProxyUrl(url);
+            const res = await fetch(proxyUrl, {
+              signal: AbortSignal.timeout(10000),
+              headers: { 'Accept': 'text/html', 'Accept-Language': 'en' }
+            });
+            if (videoForKey !== key || !res.ok) continue;
+            const html = await res.text();
+            const data = parseYtInitialData(html);
+            if (!data) continue;
+            const videos = extractChannelVideosFromYtData(data);
+            if (videos.length) return videos.slice(0, 100);
+          } catch (_) { /* try next proxy */ }
+        }
+        if (videoForKey === key && searchDebugBox && settings.searchDebug) {
+          appendDebugLog({ type: 'channel-videos-fetch', url, status: 'error', error: String(e?.message || 'fetch failed') });
+        }
+        return [];
+      }
+    }
+
+        async function searchAndPlayVideo(title, artist, startSec, durationMs) {
+      if (settings.bgMode === 'visualizer') return;
+      if (settings.bgMode !== 'youtube') return;
+
+      const searchFn = ytSearch;
 
       const key = artist + '::' + title;
       if (videoForKey === key) return;
       videoForKey = key;
       currentSongVideo = null;
-      _searchArtist = artist;
+      const mainArtist = getMainArtist(artist, title);
+      _searchArtist = mainArtist;
       _searchTitle = title;
+      _searchDurationMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : null;
       videoBg.innerHTML = '';
       document.body.classList.add('has-video');
-      hideVideoBadge();
+      showSearchStatus('', 'yt', 'searching...', '');
       stopAmbientCycle();
       if (searchDebugBox) searchDebugBox.innerHTML = '';
 
-      const searches = [
-        { q: artist + ' ' + title + ' official music video', maxRank: 0, tier: 0 }, /* 1st: official music video */
-        { queries: [artist + ' ' + title + ' live', artist + ' live'], maxRank: 2, tier: 1 }, /* 2nd: live (song+artist + artist-only, incl @) */
-        { q: artist + ' ' + title,                           maxRank: 3, tier: 2 }, /* 3rd: generic match */
-      ];
-
-      async function tryTierBoth(tierIdx) {
-        if (tierIdx >= searches.length) {
-          showSearchStatus('All tiers', '', 'falling back to ambient', '');
-          console.log('[Video] No song video found — falling back to ambient visuals');
-          if (videoForKey !== key) return;
-          currentSongVideo = null;
-          playAmbientVideo();
-          return;
-        }
-        const s = searches[tierIdx];
-        const tierLabel = TIER_LABELS[s.tier] || 'Tier ' + s.tier;
-        const qDisplay = s.queries ? s.queries.join(', ') : s.q;
-        try {
-          showSearchStatus(tierLabel, 'yt', 'searching...', qDisplay);
-          const ytList = s.queries
-            ? dedupeById((await Promise.all(s.queries.map(q => ytSearch(q, key)))).map(r => r || []).flat())
-            : await ytSearch(s.q, key);
-          if (videoForKey !== key) return;
-          if (s.queries) console.log('[Video][YT+DM] Tier ' + s.tier + ' → YouTube "' + qDisplay + '" → ' + (ytList?.length || 0) + ' merged');
-          else console.log('[Video][YT+DM] Tier ' + s.tier + ' → YouTube "' + s.q + '"');
-          const ytPick = ytList?.length ? bestFromList(ytList, s.maxRank) : null;
-          if (ytPick) {
-            showSearchStatus(tierLabel, 'yt', 'found', ytPick.title);
-            console.log('[Video][YT+DM] Tier ' + s.tier + ' ✓ YouTube:', ytPick.title, '|', rankLabel(ytPick));
-            const candidates = rankedList(ytList, s.maxRank, tierLabel);
-            tryEmbedYt(candidates, 0, startSec, key, async () => {
-              if (videoForKey !== key) return;
-              currentSongVideo = null;
-              showSearchStatus(tierLabel, 'dm', 'YT unavailable, checking...', qDisplay);
-              const dmList = s.queries
-                ? dedupeById((await Promise.all(s.queries.map(q => dmSearch(q, key)))).map(r => r || []).flat())
-                : await dmSearch(s.q, key);
-              if (s.queries) console.log('[Video][YT+DM] Tier ' + s.tier + ' → Dailymotion (YT unavailable) "' + qDisplay + '" → ' + (dmList?.length || 0) + ' merged');
-              if (videoForKey !== key) return;
-              const dmMaxRank = Math.max(s.maxRank, 3);
-              const dmPick = dmList?.length ? bestFromListWithTier(dmList, dmMaxRank, tierLabel) : null;
-              if (dmPick) {
-                showSearchStatus(tierLabel, 'dm', 'found', dmPick.title);
-                const videoData = { platform: 'dailymotion', id: dmPick.id, title: dmPick.title, channel: dmPick['owner.screenname'] || '', url: 'https://www.dailymotion.com/video/' + dmPick.id, thumb: 'https://www.dailymotion.com/thumbnail/video/' + dmPick.id };
-                currentSongVideo = { key, data: videoData };
-                embedDailymotion(dmPick.id, dmPick.title, dmPick['owner.screenname']);
-                updateHistoryWithVideo(key, videoData);
-              } else {
-                showSearchStatus(tierLabel, 'dm', 'none found', '');
-                tryTierBoth(tierIdx + 1);
-              }
-            });
-            return;
-          }
-          showSearchStatus(tierLabel, 'dm', 'YT had none, checking...', qDisplay);
-          const dmList = s.queries
-            ? dedupeById((await Promise.all(s.queries.map(q => dmSearch(q, key)))).map(r => r || []).flat())
-            : await dmSearch(s.q, key);
-          if (s.queries) console.log('[Video][YT+DM] Tier ' + s.tier + ' → Dailymotion (YT none) "' + qDisplay + '" → ' + (dmList?.length || 0) + ' merged');
-          if (videoForKey !== key) return;
-          const dmMaxRank = Math.max(s.maxRank, 3);
-          const dmPick = dmList?.length ? bestFromListWithTier(dmList, dmMaxRank, tierLabel) : null;
-          if (dmPick) {
-            showSearchStatus(tierLabel, 'dm', 'found', dmPick.title);
-            console.log('[Video][YT+DM] Tier ' + s.tier + ' ✓ Dailymotion:', dmPick.title, '|', rankLabel(dmPick));
-            const videoData = { platform: 'dailymotion', id: dmPick.id, title: dmPick.title, channel: dmPick['owner.screenname'] || '', url: 'https://www.dailymotion.com/video/' + dmPick.id, thumb: 'https://www.dailymotion.com/thumbnail/video/' + dmPick.id };
-            currentSongVideo = { key, data: videoData };
-            embedDailymotion(dmPick.id, dmPick.title, dmPick['owner.screenname']);
-            updateHistoryWithVideo(key, videoData);
-            return;
-          }
-          showSearchStatus(tierLabel, 'dm', 'none found', '');
-          console.log('[Video][YT+DM] Tier ' + s.tier + ' — none found');
-        } catch (_) {}
-        if (videoForKey !== key) return;
-        tryTierBoth(tierIdx + 1);
+      const oc = await findOfficialChannel(mainArtist, key, title);
+      if (videoForKey === key) appendDebugLog({ type: 'official-channel', ...oc });
+      const hasValidChannel = oc?.channelId || (oc?.handle && !/\s/.test((oc.handle || '')));
+      if (!hasValidChannel) {
+        showSearchStatus('Channel', '', 'none found', 'skipping to Live (fan)');
+        console.log('[Video] No official channel found — skipping to Live (fan) tier');
       }
+
+      function buildTierConfig(tierIdx) {
+        const a = normalize(mainArtist);
+        const officialChannels = (oc?.channelsSeen || []).filter(ch => {
+          if (!ch || typeof ch !== 'string') return false;
+          const c = normalize(ch);
+          return c.includes(a) || a.includes(c) || /vevo/i.test(ch);
+        });
+        const h = (oc?.handle || '').trim();
+        const n = (oc?.name || '').trim();
+        const primary = h ? ('@' + h) : n;
+        const songChannels = primary ? [primary, ...officialChannels.filter(ch => ch && ch !== n && ch !== h)] : officialChannels;
+        const songQueries = songChannels.length ? songChannels.slice(0, 4).map(ch => (ch.startsWith('@') ? ch : ch) + ' ' + title) : [title];
+        const hasValidChannel = oc?.channelId || (oc?.handle && !/\s/.test(oc.handle));
+        const songQueriesForChannel = h ? ['@' + h + ' ' + title, mainArtist + ' ' + title, title] : [mainArtist + ' ' + title, title];
+        const songTierConfig = hasValidChannel
+          ? { useChannelSearch: true, queries: songQueriesForChannel, filterByChannel: true, maxRank: 3, tier: 0 }
+          : { q: title, maxRank: 3, tier: 0 };
+        const musicVideoQueries = hasValidChannel && h
+          ? ['@' + h + ' ' + title + ' official music video', '@' + h + ' ' + title + ' music video', mainArtist + ' ' + title + ' official music video', mainArtist + ' ' + title + ' music video']
+          : [mainArtist + ' ' + title + ' official music video', mainArtist + ' ' + title + ' music video', mainArtist + ' ' + title];
+        const musicVideoTierConfig = hasValidChannel
+          ? { useChannelSearch: true, queries: musicVideoQueries, filterByChannel: true, filterExcludeLive: true, maxRank: 3, tier: 2 }
+          : { q: mainArtist + ' ' + title + ' official music video', maxRank: 3, tier: 2 };
+        /* Song live first; artist live only in retryQueries after song live fails */
+        const liveQueries = hasValidChannel && h
+          ? ['@' + h + ' ' + title + ' live', mainArtist + ' ' + title + ' live']
+          : [mainArtist + ' ' + title + ' live'];
+        const liveTierConfig = hasValidChannel
+          ? { useChannelSearch: true, queries: liveQueries, filterByChannel: true, filterLive: true, maxRank: 2, tier: 1, retryQueries: [mainArtist + ' live', mainArtist + ' concert', mainArtist + ' full set'] }
+          : { queries: liveQueries, maxRank: 2, tier: 1, retryQueries: [mainArtist + ' live', mainArtist + ' concert', mainArtist + ' full set'] };
+        const liveFanQueries = [mainArtist + ' ' + title + ' live', mainArtist + ' live', mainArtist + ' ' + title + ' concert', mainArtist + ' concert', mainArtist + ' live set'];
+        const liveFanTierConfig = { queries: liveFanQueries, filterByChannel: false, filterLive: true, allowUnofficial: true, filterByTitle: false, maxRank: 3, tier: 3, retryQueries: [mainArtist + ' full set', mainArtist + ' ' + title] };
+        const configs = [
+          songTierConfig,
+          liveTierConfig,
+          musicVideoTierConfig,
+          liveFanTierConfig
+        ];
+        return configs[tierIdx] ? { ...configs[tierIdx] } : null;
+      }
+      const tierOrder = settings.tierOrder && settings.tierOrder.length ? settings.tierOrder : [0, 1, 2, 3];
+      const tierEnabled = settings.tierEnabled && settings.tierEnabled.length >= 4 ? settings.tierEnabled : [true, true, true, false];
+      /* No official channel: skip to Live (fan) only — it has no official channel requirement */
+      const orderedTiers = hasValidChannel
+        ? tierOrder.filter(i => tierEnabled[i] !== false)
+        : [3];
+      const searches = orderedTiers.map(i => buildTierConfig(i)).filter(Boolean);
 
       async function tryTier(tierIdx) {
         if (tierIdx >= searches.length) {
-          showSearchStatus('All tiers', '', 'falling back to ambient', '');
-          console.log('[Video] No song video found — falling back to ambient visuals');
+          showSearchStatus('All tiers', '', 'falling back', getEffectiveFallbackPlaylistId() ? 'playlist' : 'ambient');
+          console.log('[Video] No song video found — falling back to ' + (getEffectiveFallbackPlaylistId() ? 'playlist' : 'ambient'));
           if (videoForKey !== key) return;
           currentSongVideo = null;
-          playAmbientVideo();
+          (getEffectiveFallbackPlaylistId() ? playFromFallbackPlaylist : playAmbientVideo)();
           return;
         }
         const s = searches[tierIdx];
         const tierLabel = TIER_LABELS[s.tier] || 'Tier ' + s.tier;
-        const qDisplay = s.queries ? s.queries.join(', ') : s.q;
+        _currentSearchTierLabel = tierLabel; /* fallback for badge when tier not passed */
+        const qDisplay = s.queries ? s.queries.join(', ') : (s.useChannelSearch ? 'channel search' : s.q);
+        if (tierIdx === 0 && !s.useChannelSearch && oc?.found && oc?.name) {
+          appendDebugLog({ type: 'channel-skipped', reason: 'no @handle or channelId for "' + oc.name + '"' });
+        }
         try {
-          showSearchStatus(tierLabel, useYT ? 'yt' : 'dm', 'searching...', qDisplay);
-          const list = s.queries
-            ? dedupeById((await Promise.all(s.queries.map(q => searchFn(q, key)))).map(r => r || []).flat())
-            : await searchFn(s.q, key);
-          if (s.queries) console.log('[Video][' + platform + '] Tier ' + s.tier + ' → "' + qDisplay + '" → ' + (list?.length || 0) + ' merged');
-          else console.log('[Video][' + platform + '] Tier ' + s.tier + ' → searching "' + s.q + '"');
+          if (tierIdx === 0 && !s.useChannelSearch && oc?.found && oc?.name) {
+            appendDebugLog({ type: 'channel-skipped', reason: 'need @handle or channelId (have name only)', name: oc.name });
+          }
+          showSearchStatus(tierLabel, 'yt', 'searching...', qDisplay);
+          let listRaw;
+          if (s.queries) {
+            const hasLiveInTitle = v => /\blive\b|\bconcert\b|\bperformanc|\bfestival\b|\bunplugged\b/.test((v.title || '').toLowerCase());
+            const channelFilter = s.allowUnofficial ? (v) => true : (s.filterByChannel && oc ? (v) => isFromOfficialChannel(v, oc) : (v) => isOfficialChannel(v));
+            const hasVideoInTitle = v => /\bvideo\b/.test((v.title || '').toLowerCase());
+            const minDurationSec = _searchDurationMs ? Math.floor(_searchDurationMs / 1000) : 0;
+            const videoLongerThanSong = v => !minDurationSec || !v.duration || v.duration >= minDurationSec;
+            const filterList = (raw) => {
+              let L = raw.filter(channelFilter);
+              if (s.filterLive) L = L.filter(hasLiveInTitle);
+              if (s.filterByChannel && s.tier === 0) L = L.filter(v => titleContains(v, title));
+              if (s.filterByTitle && s.tier === 3) L = L.filter(v => titleContains(v, title));
+              if (s.tier === 2) L = L.filter(v => hasVideoInTitle(v) && titleContains(v, title));
+              if ((s.tier === 1 || s.tier === 3) && minDurationSec) L = L.filter(videoLongerThanSong);
+              return L;
+            };
+            const firstQ = s.queries[0];
+            listRaw = firstQ ? await searchFn(firstQ, key) : null;
+            let list = filterList(listRaw || []);
+            if (list.length === 0 && s.queries.length > 1) {
+              const rest = dedupeById((await Promise.all(s.queries.slice(1).map(q => searchFn(q, key)))).map(r => r || []).flat());
+              listRaw = dedupeById([...(listRaw || []), ...rest]);
+              list = filterList(listRaw);
+            } else {
+              listRaw = listRaw || [];
+            }
+          } else {
+            const searchQ = s.fallbackQ || s.q;
+            listRaw = searchQ ? await searchFn(searchQ, key) : null;
+          }
           if (videoForKey !== key) return;
-          if (list) {
+          const hasLiveInTitle = v => /\blive\b|\bconcert\b|\bperformanc|\bfestival\b|\bunplugged\b/.test((v.title || '').toLowerCase());
+          const hasVideoInTitle = v => /\bvideo\b/.test((v.title || '').toLowerCase());
+          const channelFilter = s.allowUnofficial ? (v) => true : (s.filterByChannel && oc ? (v) => isFromOfficialChannel(v, oc) : (v) => isOfficialChannel(v));
+          const minDurationSec = _searchDurationMs ? Math.floor(_searchDurationMs / 1000) : 0;
+          const videoLongerThanSong = v => !minDurationSec || !v.duration || v.duration >= minDurationSec;
+          let list = (listRaw || []).filter(channelFilter);
+          if (s.filterLive) list = list.filter(hasLiveInTitle);
+          if (s.filterByChannel && s.tier === 0) list = list.filter(v => titleContains(v, title));
+          if (s.filterByTitle && s.tier === 3) list = list.filter(v => titleContains(v, title));
+          if (s.tier === 2) list = list.filter(v => hasVideoInTitle(v) && titleContains(v, title));
+          if ((s.tier === 1 || s.tier === 3) && minDurationSec) list = list.filter(videoLongerThanSong);
+          if ((s.filterByChannel || s.allowUnofficial) && searchDebugBox && settings.searchDebug) {
+            appendDebugLog({ type: 'channel-videos', videos: listRaw || [], matched: list });
+          }
+          if (s.queries) console.log('[Video][YouTube] Tier ' + s.tier + ' → "' + qDisplay + '" → ' + (list?.length || 0) + ' merged');
+          else console.log('[Video][YouTube] Tier ' + s.tier + ' → searching "' + (s.fallbackQ || s.q) + '"');
+          if (videoForKey !== key) return;
+          /* If no hits, retry with channel "title" (exact phrase) */
+          if ((!list || list.length === 0) && title && title.length > 2) {
+            const qTitle = '"' + title.replace(/"/g, '') + '"';
+            const channelPart = (oc?.name && oc.name.trim()) ? oc.name.trim() : ((oc?.handle || '').trim() ? '@' + (oc.handle || '').trim() : mainArtist);
+            const quotedQuery = (s.tier === 1 || s.tier === 3) ? channelPart + ' ' + qTitle + ' live' : channelPart + ' ' + qTitle;
+            showSearchStatus(tierLabel, 'yt', 'trying quoted...', quotedQuery);
+            const quotedRaw = await searchFn(quotedQuery, key);
+            if (videoForKey !== key) return;
+            listRaw = dedupeById([...(listRaw || []), ...(quotedRaw || [])]);
+            list = (listRaw || []).filter(channelFilter);
+            if (s.filterLive) list = list.filter(hasLiveInTitle);
+            if (s.filterByChannel && s.tier === 0) list = list.filter(v => titleContains(v, title));
+            if (s.filterByTitle && s.tier === 3) list = list.filter(v => titleContains(v, title));
+            if (s.tier === 2) list = list.filter(v => hasVideoInTitle(v) && titleContains(v, title));
+            if ((s.tier === 1 || s.tier === 3) && minDurationSec) list = list.filter(videoLongerThanSong);
+            if (list?.length && searchDebugBox && settings.searchDebug) {
+              appendDebugLog({ type: 'channel-videos', videos: listRaw || [], matched: list });
+            }
+          }
+          /* If still no hits, load all channel videos (only when deep search enabled) */
+          const hasValidChannel = oc?.channelId || (oc?.handle && !/\s/.test((oc.handle || '')));
+          if ((!list || list.length === 0) && hasValidChannel && s.filterByChannel && settings.deepSearch) {
+            showSearchStatus(tierLabel, 'yt', 'loading channel videos...', oc.handle ? '@' + oc.handle : 'channel');
+            const channelVids = await ytChannelVideos(oc.channelId || ('@' + (oc.handle || '').trim()), key);
+            if (videoForKey !== key) return;
+              if (channelVids?.length) {
+              listRaw = dedupeById([...(listRaw || []), ...channelVids]);
+              /* All from channel page = implicitly from official channel; filter by title/live only */
+              let fromChannel = channelVids;
+              if (s.filterLive) fromChannel = fromChannel.filter(hasLiveInTitle);
+              if (s.tier === 0) fromChannel = fromChannel.filter(v => titleContains(v, title));
+              if (s.tier === 2) fromChannel = fromChannel.filter(v => /\bvideo\b/.test((v.title || '').toLowerCase()) && titleContains(v, title));
+              if ((s.tier === 1 || s.tier === 3) && minDurationSec) fromChannel = fromChannel.filter(videoLongerThanSong);
+              list = fromChannel;
+              if (list?.length && searchDebugBox && settings.searchDebug) {
+                appendDebugLog({ type: 'channel-videos', videos: channelVids, matched: list, source: 'channel-page' });
+              }
+            }
+          }
+          /* Live tier: when song live returns nothing, try artist live (and other retry queries) before giving up */
+          if ((!list || list.length === 0) && s.retryQueries?.length && s.tier === 1) {
+            showSearchStatus(tierLabel, 'yt', 'trying artist live...', s.retryQueries[0]);
+            const retryRaw = dedupeById((await Promise.all(s.retryQueries.map(q => searchFn(q, key)))).map(r => r || []).flat());
+            if (videoForKey !== key) return;
+            listRaw = dedupeById([...(listRaw || []), ...retryRaw]);
+            list = (listRaw || []).filter(channelFilter);
+            if (s.filterLive) list = list.filter(hasLiveInTitle);
+            if (s.filterByChannel && s.tier === 0) list = list.filter(v => titleContains(v, title));
+            if ((s.tier === 1 || s.tier === 3) && minDurationSec) list = list.filter(videoLongerThanSong);
+            if (list?.length && searchDebugBox && settings.searchDebug) {
+              appendDebugLog({ type: 'retry-queries', queries: s.retryQueries, matched: list });
+            }
+          }
+          if (list && list.length) {
             const pick = bestFromList(list, s.maxRank);
-            if (pick) {
-              showSearchStatus(tierLabel, useYT ? 'yt' : 'dm', 'found', pick.title);
-              console.log('[Video][' + platform + '] Tier ' + s.tier + ' ✓ picked:', pick.title, '|', rankLabel(pick));
+            const toTry = pick || list[0];
+            if (toTry) {
+              showSearchStatus(tierLabel, 'yt', 'found', toTry.title);
+              console.log('[Video][YouTube] Tier ' + s.tier + ' ✓ picked:', toTry.title, '|', rankLabel(toTry));
               if (videoForKey !== key) return;
-              if (useYT) {
-                const candidates = rankedList(list, s.maxRank, tierLabel);
-                tryEmbedYt(candidates, 0, startSec, key, () => {
+              const candidates = pick ? rankedList(list, s.maxRank, tierLabel) : [list[0]];
+              tryEmbedYt(candidates, 0, startSec, key, tierLabel, async () => {
                   if (videoForKey !== key) return;
                   currentSongVideo = null;
+                  const rq = s.retryQueries;
+                  if (rq?.length) {
+                    showSearchStatus(tierLabel, 'yt', 'retrying different query...', rq[0]);
+                    const retryListRaw = dedupeById((await Promise.all(rq.map(q => ytSearch(q, key)))).map(r => r || []).flat());
+                    const retryChannelFilter = s.allowUnofficial ? (v) => true : (s.filterByChannel && oc ? (v) => isFromOfficialChannel(v, oc) : (v) => isOfficialChannel(v));
+                    let retryList = (retryListRaw || []).filter(retryChannelFilter);
+                    if (s.filterLive) retryList = retryList.filter(v => /\blive\b|\bconcert\b|\bperformanc|\bfestival\b|\bunplugged\b/.test((v.title || '').toLowerCase()));
+                    if (s.filterByTitle && s.tier === 3) retryList = retryList.filter(v => titleContains(v, title));
+                    if (s.tier === 2) retryList = retryList.filter(v => /\bvideo\b/.test((v.title || '').toLowerCase()) && titleContains(v, title));
+                    if ((s.tier === 1 || s.tier === 3) && minDurationSec) retryList = retryList.filter(videoLongerThanSong);
+                    const triedIds = new Set(candidates.map(v => v.id));
+                    const fresh = (retryList || []).filter(v => !triedIds.has(v.id));
+                    if (fresh.length) {
+                      const retryCandidates = rankedList(fresh, Math.max(s.maxRank, 3), tierLabel);
+                      tryEmbedYt(retryCandidates, 0, startSec, key, tierLabel, () => {
+                        if (videoForKey !== key) return;
+                        currentSongVideo = null;
+                        console.log('[Video] Retry candidates unavailable, next tier');
+                        tryTier(tierIdx + 1);
+                      });
+                      return;
+                    }
+                  }
                   console.log('[Video] All YouTube candidates in tier ' + s.tier + ' unavailable, trying next tier');
                   showSearchStatus(tierLabel, 'yt', 'unavailable, next tier', '');
-                tryTier(tierIdx + 1);
+                  tryTier(tierIdx + 1);
                 });
-              } else {
-                const videoData = { platform: 'dailymotion', id: pick.id, title: pick.title, channel: pick['owner.screenname'] || '', url: 'https://www.dailymotion.com/video/' + pick.id, thumb: 'https://www.dailymotion.com/thumbnail/video/' + pick.id };
-                currentSongVideo = { key, data: videoData };
-                embedDailymotion(pick.id, pick.title, pick['owner.screenname']);
-                updateHistoryWithVideo(key, videoData);
-              }
               return;
             }
           }
-          showSearchStatus(tierLabel, useYT ? 'yt' : 'dm', 'none found', '');
-          console.log('[Video][' + platform + '] Tier ' + s.tier + ' — none found');
+          showSearchStatus(tierLabel, 'yt', 'none found', '');
+          console.log('[Video][YouTube] Tier ' + s.tier + ' — none found');
         } catch (_) {}
         if (videoForKey !== key) return;
         tryTier(tierIdx + 1);
       }
 
-      if (useBoth) {
-        tryTierBoth(0);
-      } else {
-        tryTier(0);
-      }
+      tryTier(0);
     }
 
     /* ── Ambient / trippy fallback videos ── */
-    const AMBIENT_DM = [
-      { id: 'x8wjvrm', title: 'LOOP Blue Abstract', ch: 'Ambient' },
-      { id: 'x2u7k1a', title: 'Psychedelic Fractal Kaleidoscope', ch: 'Ambient' },
-      { id: 'x6gbd6a', title: 'Psychedelic Trip Fractal Animations', ch: 'Ambient' },
-      { id: 'x2z6z8w', title: 'Fractal Worlds — Mandelbulb 3D 4K', ch: 'Ambient' },
-      { id: 'x324xhk', title: 'Mandelbulb 3D Fractal Animation', ch: 'Ambient' },
-      { id: 'x9dqgpw', title: 'Forest 4K — Nature Scenery & Relaxing', ch: 'Nature' },
-      { id: 'x7xa67f', title: 'Beautiful Nature Scenery & Relaxing Music', ch: 'Nature' },
-      { id: 'x2vztik', title: 'A Psychedelic Animation Trip', ch: 'Ambient' },
-      { id: 'x25d2tr', title: 'DJ Set with Video Fractal', ch: 'Ambient' },
-      { id: 'x7v5sph', title: 'Green Cross — Fractal Zoom 4K 60FPS', ch: 'Ambient' },
-      { id: 'xaebr1', title: 'Trippy Visuals', ch: 'Ambient' },
-      { id: 'x7vrvc6', title: 'Ambient Abstract Music', ch: 'Ambient' },
-    ];
     const AMBIENT_YT = [
       { id: 'yIQd2Ya0Ziw', title: '4K Fractal Cosmic Journey', ch: 'Ambient' },
       { id: 'lM02vNMRRB0', title: 'Northern Lights 4K', ch: 'Nature' },
@@ -3148,37 +4202,21 @@
       { id: 'F1B9Fk_SgI0', title: '4K Ocean Waves — Relaxing Nature', ch: 'Nature' },
       { id: 'kxLn09BjNJg', title: 'Trippy Fractal Zoom', ch: 'Ambient' },
     ];
-    let ambientDmIdx = Math.floor(Math.random() * AMBIENT_DM.length);
     let ambientYtIdx = Math.floor(Math.random() * AMBIENT_YT.length);
     let ambientCycleTimer = null;
 
     let ambientRetries = 0;
-    function playAmbientVideo(forceDailymotion) {
+    function playAmbientVideo() {
       stopAmbientCycle();
-      /* When YouTube is selected, never fall back to Dailymotion */
-      const useYT = settings.bgMode === 'youtube' ? true : !forceDailymotion;
-      if (useYT) {
-        const v = AMBIENT_YT[ambientYtIdx];
-        ambientYtIdx = (ambientYtIdx + 1) % AMBIENT_YT.length;
-        embedYouTube(v.id, 0, v.title, v.ch, () => {
-          if (++ambientRetries < AMBIENT_YT.length) playAmbientVideo();
-          else {
-            ambientRetries = 0;
-            if (settings.bgMode === 'youtube') {
-              showError('YouTube videos unavailable — check proxy or try Dailymotion in Settings.');
-            } else {
-              playAmbientVideo(true);
-            }
-          }
-        });
-        showVideoBadge(v.title, v.ch, 'youtube');
-      } else {
-        const v = AMBIENT_DM[ambientDmIdx];
-        ambientDmIdx = (ambientDmIdx + 1) % AMBIENT_DM.length;
-        embedDailymotion(v.id, v.title, v.ch);
-        showVideoBadge(v.title, v.ch, 'dailymotion');
-      }
-      ambientRetries = 0;
+      const v = AMBIENT_YT[ambientYtIdx];
+      ambientYtIdx = (ambientYtIdx + 1) % AMBIENT_YT.length;
+      embedYouTube(v.id, 0, v.title, v.ch, () => {
+        if (++ambientRetries < AMBIENT_YT.length) playAmbientVideo();
+        else {
+          ambientRetries = 0;
+          showError('YouTube videos unavailable — check network or try again.');
+        }
+      }, undefined, 'Ambient');
       ambientCycleTimer = setTimeout(() => {
         if (videoForKey && document.body.classList.contains('has-video')) {
           playAmbientVideo();
@@ -3602,7 +4640,7 @@
             fetchCoverArt(r);
             phase('Song identified', label, true, false);
             fetchLyrics(r.title, r.artist, r.album, dur);
-            if (videoForKey !== key) searchAndPlayVideo(r.title, r.artist, Number.isFinite(tc) ? tc / 1000 : 0);
+            if (videoForKey !== key) searchAndPlayVideo(r.title, r.artist, Number.isFinite(tc) ? tc / 1000 : 0, dur);
 
           } else if (curKey === key || isSameSong(curArtist, curTitle, r.artist, r.title)) {
             curDurationMs = dur || curDurationMs;
@@ -3625,7 +4663,7 @@
             fetchCoverArt(r);
             phase('New song detected', prevLabel + ' → ' + label, true, false);
             fetchLyrics(r.title, r.artist, r.album, dur);
-            if (videoForKey !== key) searchAndPlayVideo(r.title, r.artist, Number.isFinite(tc) ? tc / 1000 : 0);
+            if (videoForKey !== key) searchAndPlayVideo(r.title, r.artist, Number.isFinite(tc) ? tc / 1000 : 0, dur);
           }
 
           startProgress();
@@ -3768,7 +4806,7 @@
 
     if (settings.bgMode === 'visualizer') initVisualizerAudioOnly().catch(() => {});
 
-    console.log('[DJ Live] v12 loaded — YouTube + Dailymotion + Visualizer backgrounds');
+    console.log('[DJ Live] v12 loaded — YouTube + Visualizer backgrounds');
   </script>
 </body>
 </html>
