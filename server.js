@@ -415,6 +415,16 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  /* Serve favicon for local dev (browsers often request /favicon.ico first) */
+  const faviconPath = parsed.pathname === '/favicon.ico' ? 'favicon.png'
+    : parsed.pathname === '/favicon.svg' ? 'favicon.svg'
+    : parsed.pathname === '/favicon.png' ? 'favicon.png' : null;
+  if (faviconPath) {
+    const ct = faviconPath.endsWith('.svg') ? 'image/svg+xml' : 'image/png';
+    serveFile(res, path.join(__dirname, faviconPath), ct);
+    return;
+  }
+
   /* Serve index.html for root (incl. Spotify callback ?code=...) and /index.html */
   const p = (parsed.pathname || '').replace(/\/+/g, '/');
   if (!p || p === '/' || p === '/index.html') {
