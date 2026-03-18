@@ -331,6 +331,7 @@ const server = http.createServer((req, res) => {
   }
 
   if (parsed.pathname === '/api/recognize') {
+    console.log('[DJ Live] Query: /api/recognize (AudD proxy)');
     handleRecognize(req, res);
     return;
   }
@@ -340,6 +341,7 @@ const server = http.createServer((req, res) => {
     const channelId = parsed.searchParams.get('channelId');
     const ref = channelId || handle;
     if (!ref) { res.writeHead(400); res.end('Missing handle or channelId param'); return; }
+    console.log('[DJ Live] Query: /api/youtube/channel', { handle: handle || null, channelId: channelId || null });
     handleYouTubeChannel(req, res, ref);
     return;
   }
@@ -347,6 +349,7 @@ const server = http.createServer((req, res) => {
   if (parsed.pathname === '/api/youtube') {
     const q = parsed.searchParams.get('q');
     if (!q) { res.writeHead(400); res.end('Missing q param'); return; }
+    console.log('[DJ Live] Query: /api/youtube', q);
     handleYouTubeSearch(req, res, q);
     return;
   }
@@ -358,6 +361,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(400, { 'Content-Type': 'text/plain' });
       return res.end('Invalid or disallowed url');
     }
+    console.log('[DJ Live] Query: /api/proxy', target.slice(0, 120) + (target.length > 120 ? '...' : ''));
     const opts = {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -400,6 +404,7 @@ const server = http.createServer((req, res) => {
   if (parsed.pathname === '/api/reddit') {
     const q = parsed.searchParams.get('q');
     if (!q) { res.writeHead(400); res.end('Missing q param'); return; }
+    console.log('[DJ Live] Query: /api/reddit', q);
     const redditUrl = 'https://www.reddit.com/search.json?q=' + encodeURIComponent(q) + '&sort=relevance&limit=10&restrict_sr=false';
     require('https').get(redditUrl, { headers: { 'User-Agent': 'DJLive/1.0' } }, (redditRes) => {
       let data = '';

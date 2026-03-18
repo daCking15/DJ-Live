@@ -133,6 +133,14 @@
     .spotify-status-msg { font-size: 0.9rem; color: var(--text-muted); text-align: center; margin-top: 0.5rem; }
     .spotify-status-msg.active { color: var(--accent); font-weight: 500; }
 
+    .landing-demo-wrap { text-align: center; margin-top: 1.25rem; }
+    .landing-demo-btn {
+      font-size: 0.9rem; color: var(--accent); background: transparent; border: 1px solid var(--accent-dim);
+      border-radius: 8px; padding: 0.5rem 1rem; cursor: pointer; font-family: inherit;
+      transition: background 0.2s, color 0.2s;
+    }
+    .landing-demo-btn:hover { background: rgba(0,255,157,0.12); color: var(--accent); }
+
     /* ── Now Playing (base / hidden) ── */
     .now-playing {
       background: var(--bg-card); border: 1px solid var(--accent-dim);
@@ -344,27 +352,53 @@
     }
 
     #resultsList, #resultsListDrawer {
-      display: grid;
-      grid-template-columns: 48px 1fr 1fr 1fr;
-      align-items: center; gap: 0.75rem 1.75rem;
+      display: flex; flex-direction: column; gap: 0.75rem;
     }
     .result-col-empty { display: block; min-height: 1px; }
     .result-card {
       display: grid;
-      grid-template-columns: subgrid;
-      grid-column: 1 / -1;
-      align-items: center;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: center; gap: 0 1.5rem;
       background: var(--bg-card); border: 1px solid var(--border);
       border-radius: 12px; padding: 1.25rem 1.5rem;
       transition: background 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+    }
+    .result-card.no-video {
+      grid-template-columns: 1fr auto;
     }
     .album-art {
       width: 48px; height: 48px; border-radius: 6px;
       background: var(--bg-elevated); object-fit: cover; flex-shrink: 0;
     }
+    .album-art-link {
+      display: block; position: relative; flex-shrink: 0;
+      width: 48px; height: 48px; border-radius: 6px;
+      text-decoration: none; color: inherit;
+    }
+    .album-art-link:hover { opacity: 0.92; }
+    .album-art-link .album-art { display: block; width: 100%; height: 100%; }
+    .album-art-spotify-badge {
+      position: absolute; top: 2px; right: 2px;
+      width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.6); border-radius: 4px;
+    }
+    .album-art-spotify-badge svg { width: 10px; height: 10px; color: #1DB954; }
+    .last-song-card .album-art-link { width: 120px; height: 120px; }
+    .last-song-card .album-art-spotify-badge { width: 24px; height: 24px; top: 4px; right: 4px; }
+    .last-song-card .album-art-spotify-badge svg { width: 16px; height: 16px; }
     .result-info {
       min-width: 0; padding-left: 1rem;
       display: flex; flex-direction: column; gap: 0.25rem;
+      flex: 1; overflow: hidden;
+    }
+    .result-info-combo {
+      display: flex; align-items: center; min-width: 0; gap: 1rem;
+      overflow: hidden;
+    }
+    .result-info-combo .result-info { padding-left: 0; flex: 1; min-width: 0; }
+    .result-extra-combo {
+      display: flex; align-items: center; justify-content: flex-start; gap: 0.5rem;
+      min-width: 0;
     }
     .result-title {
       font-weight: 600; font-size: 0.95rem;
@@ -1320,7 +1354,11 @@
         </label>
         <label class="stg-check" style="margin-top:0.5rem">
           <input type="checkbox" id="randomLiveStartCb">
-          <span>Random start in long live sets (skip to random point 0–15 min)</span>
+          <span>Random start in long live sets (skip to random point 0 to video length − song length)</span>
+        </label>
+        <label class="stg-check" style="margin-top:0.5rem">
+          <input type="checkbox" id="only4kCb">
+          <span>Only 4K videos (filter by title: 4K, UHD, 2160p)</span>
         </label>
       </div>
       <hr class="stg-divider">
@@ -1415,6 +1453,7 @@
       <div class="spotify-card" id="spotifyCard">
         <p class="spotify-status-msg" id="spotifyStatusMsg">Sign in via Settings. Now playing syncs from any device (phone, desktop, web).</p>
       </div>
+      <p class="landing-demo-wrap"><button type="button" class="landing-demo-btn" id="demoBtn">Try demo song</button></p>
     </div>
 
     <div class="landing-right">
@@ -1517,6 +1556,7 @@
       fallbackPlaylistUrl: '',
       fallbackPlaylistShuffle: true,
       randomLiveStart: true,
+      only4k: false,
       tierOrder: [2, 0, 1, 3],
       tierEnabled: [true, true, true, false],
       proxyMode: 'cors'
@@ -1535,6 +1575,7 @@
         if (merged.ambientDefault !== 'youtube') merged.ambientDefault = 'youtube';
         if (typeof merged.fallbackPlaylistShuffle !== 'boolean') merged.fallbackPlaylistShuffle = !!DEFAULTS.fallbackPlaylistShuffle;
         if (typeof merged.randomLiveStart !== 'boolean') merged.randomLiveStart = !!DEFAULTS.randomLiveStart;
+        if (typeof merged.only4k !== 'boolean') merged.only4k = !!DEFAULTS.only4k;
         if (!['djlive', 'custom'].includes(merged.fallbackPlaylistSource)) merged.fallbackPlaylistSource = (merged.fallbackPlaylistUrl && (merged.fallbackPlaylistUrl.match(/[?&]list=([a-zA-Z0-9_-]+)/)?.[1])) ? 'custom' : 'djlive';
         if (!Array.isArray(merged.tierOrder) || merged.tierOrder.length === 0) merged.tierOrder = [...DEFAULTS.tierOrder];
         if (!Array.isArray(merged.tierEnabled) || merged.tierEnabled.length < 4) merged.tierEnabled = [...(DEFAULTS.tierEnabled || [true, true, true, false])];
@@ -1666,6 +1707,7 @@
       document.getElementById('searchDebugCb').checked = !!settings.searchDebug;
       document.getElementById('deepSearchCb').checked = !!settings.deepSearch;
       document.getElementById('randomLiveStartCb').checked = !!settings.randomLiveStart;
+      document.getElementById('only4kCb').checked = !!settings.only4k;
       document.getElementById('showSocialPostsCb').checked = !!settings.showSocialPosts;
       stgFallbackPlaylistSource = settings.fallbackPlaylistSource || 'djlive';
       document.querySelectorAll('[data-fallback-source]').forEach(b => b.classList.toggle('active', b.dataset.fallbackSource === stgFallbackPlaylistSource));
@@ -2115,6 +2157,7 @@
       settings.searchDebug = !!document.getElementById('searchDebugCb').checked;
       settings.deepSearch = !!document.getElementById('deepSearchCb').checked;
       settings.randomLiveStart = !!document.getElementById('randomLiveStartCb').checked;
+      settings.only4k = !!document.getElementById('only4kCb').checked;
       settings.showSocialPosts = !!document.getElementById('showSocialPostsCb').checked;
       settings.ambientDefault = stgAmbientDefault || 'youtube';
       const customUrl = (document.getElementById('fallbackPlaylistUrl')?.value || '').trim();
@@ -2258,6 +2301,7 @@
       if (getArtUrl(result)) return;
       try {
         const q = encodeURIComponent(result.artist + ' ' + result.title);
+        console.log('[DJ Live] Query: iTunes cover', JSON.stringify(result.artist + ' ' + result.title));
         const res = await fetch('https://itunes.apple.com/search?term=' + q + '&entity=song&limit=3',
           { signal: AbortSignal.timeout(5000) });
         if (res.ok) {
@@ -2285,6 +2329,7 @@
       if (getArtUrl(item)) return;
       try {
         const q = encodeURIComponent(item.artist + ' ' + item.title);
+        console.log('[DJ Live] Query: iTunes cover (history)', JSON.stringify(item.artist + ' ' + item.title));
         const res = await fetch('https://itunes.apple.com/search?term=' + q + '&entity=song&limit=3',
           { signal: AbortSignal.timeout(5000) });
         if (res.ok) {
@@ -2323,9 +2368,10 @@
       return h;
     }
 
-    function getLinksIcons(r) {
+    function getLinksIcons(r, opts) {
+      const excl = opts?.excludeSpotify;
       let h = '';
-      if (r.spotify?.external_urls?.spotify) h += '<a href="'+r.spotify.external_urls.spotify+'" target="_blank" rel="noopener" class="result-link-icon" title="Spotify" style="color:#1DB954">'+SPOTIFY_ICON+'</a>';
+      if (!excl && r.spotify?.external_urls?.spotify) h += '<a href="'+r.spotify.external_urls.spotify+'" target="_blank" rel="noopener" class="result-link-icon" title="Spotify" style="color:#1DB954">'+SPOTIFY_ICON+'</a>';
       if (r.apple_music?.url) h += '<a href="'+r.apple_music.url+'" target="_blank" rel="noopener" class="result-link-icon" title="Apple Music" style="color:#FA243C">'+APPLE_MUSIC_ICON+'</a>';
       if (r._deezerUrl) h += '<a href="'+r._deezerUrl+'" target="_blank" rel="noopener" class="result-link-icon" title="Deezer" style="color:#FEAA2D">'+DEEZER_ICON+'</a>';
       return h;
@@ -2419,6 +2465,7 @@
 
       try {
         const q = encodeURIComponent(artist + ' ' + title);
+        console.log('[DJ Live] Query: Reddit search', JSON.stringify(artist + ' ' + title));
         const redditUrl = 'https://www.reddit.com/search.json?q=' + q + '&sort=relevance&limit=50&restrict_sr=false';
         const url = 'https://corsproxy.io/?' + encodeURIComponent(redditUrl);
         const res = await fetch(url);
@@ -2478,6 +2525,8 @@
     }
 
     function showNowPlaying(result, badge) {
+      if (!result?.title || !result?.artist) return;
+      if (!nowPlaying) { console.warn('[DJ Live] nowPlaying element missing'); return; }
       document.body.classList.add('has-song');
       /* Let landing start fading out, then crossfade in now-playing after ~1 frame */
       requestAnimationFrame(() => {
@@ -2675,9 +2724,13 @@
       const art = item.apple_music?.artwork?.url?.replace('{w}', 600).replace('{h}', 600)
         || item.spotify?.album?.images?.[0]?.url
         || item._coverFallback || item._itunesArt || '';
+      const spotifyUrl = item.spotify?.external_urls?.spotify;
       const tidbit = LAST_SONG_TIDBITS[Math.floor(Math.random() * LAST_SONG_TIDBITS.length)];
-      const artHtml = art ? '<img class="album-art" src="'+art+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">' : '<div class="album-art"></div>';
-      const linksHtml = getLinksIcons(item);
+      const imgHtml = art ? '<img class="album-art" src="'+art+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">' : '';
+      const artHtml = art && spotifyUrl
+        ? '<a href="'+spotifyUrl+'" target="_blank" rel="noopener" class="album-art-link" title="Open in Spotify">'+imgHtml+'<span class="album-art-spotify-badge">'+SPOTIFY_ICON+'</span></a>'
+        : (art ? imgHtml : '<div class="album-art"></div>');
+      const linksHtml = getLinksIcons(item, { excludeSpotify: !!spotifyUrl });
       const thumbUrl = item.video?.thumb || (item.video?.platform === 'youtube' ? 'https://img.youtube.com/vi/'+item.video.id+'/hqdefault.jpg' : item.video?.platform === 'dailymotion' ? 'https://www.dailymotion.com/thumbnail/video/'+item.video.id : null);
       const ch = item.video?.channel || item.video?.['owner.screenname'] || '';
       const videoMetaHtml = item.video && (item.video.title || ch) ? '<div class="last-song-video-meta">'+(item.video.title ? '<span class="last-song-video-title">'+escapeHtml(item.video.title)+'</span>' : '')+(ch ? '<span class="last-song-video-channel">'+escapeHtml(ch)+'</span>' : '')+'</div>' : '';
@@ -2722,30 +2775,37 @@
 
     function renderHistoryCard(item) {
       const card = document.createElement('div');
-      card.className = 'result-card';
+      card.className = 'result-card' + (!item.video ? ' no-video' : '');
       card.dataset.title = item.title;
       card.dataset.artist = item.artist;
       const art = item.apple_music?.artwork?.url?.replace('{w}', 600).replace('{h}', 600)
         || item.spotify?.album?.images?.[0]?.url
         || item._coverFallback || item._itunesArt || '';
-      const linksHtml = getLinksIcons(item);
+      const spotifyUrl = item.spotify?.external_urls?.spotify;
+      const linksHtml = getLinksIcons(item, { excludeSpotify: !!spotifyUrl });
+      const videoIconsHtml = ''; /* No video icon — thumbnail is already clickable */
       const thumbUrl = item.video?.thumb || (item.video?.platform === 'youtube' ? 'https://img.youtube.com/vi/'+item.video.id+'/hqdefault.jpg' : item.video?.platform === 'dailymotion' ? 'https://www.dailymotion.com/thumbnail/video/'+item.video.id : null);
-      const ytIcon = '<svg viewBox="0 0 24 24" fill="#FF0000"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.38.55A3.02 3.02 0 0 0 .5 6.19 31.6 31.6 0 0 0 0 12a31.6 31.6 0 0 0 .5 5.81 3.02 3.02 0 0 0 2.12 2.14c1.88.55 9.38.55 9.38.55s7.5 0 9.38-.55a3.02 3.02 0 0 0 2.12-2.14A31.6 31.6 0 0 0 24 12a31.6 31.6 0 0 0-.5-5.81zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/></svg>';
-      const dmIcon = '<svg viewBox="0 0 24 24" fill="#00AAFF"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm4.5 12l-6.75 4.5v-9L16.5 12z"/></svg>';
-      const videoIconsHtml = item.video ? (item.video.platform === 'youtube' ? '<a href="'+item.video.url+'" target="_blank" rel="noopener" class="result-link-icon" title="YouTube">'+ytIcon+'</a>' : item.video.platform === 'dailymotion' ? '<a href="'+item.video.url+'" target="_blank" rel="noopener" class="result-link-icon" title="Dailymotion">'+dmIcon+'</a>' : '') : '';
       const ch = item.video?.channel || item.video?.['owner.screenname'] || '';
       const thumbHtml = thumbUrl ? '<div class="result-video-thumb"><img src="'+thumbUrl+'" alt="" class="video-thumb-img" onerror="this.parentElement.classList.add(\'no-thumb\')"><span class="video-play-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></div>' : '<div class="result-video-thumb no-thumb"><span class="video-play-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></div>';
       const videoPart = item.video ? '<a href="'+item.video.url+'" target="_blank" rel="noopener" class="result-video-block" title="'+escapeHtml(item.video.title)+'"><div class="result-video-row">'+thumbHtml+'<div class="result-video-meta">'+(item.video.title ? '<span class="result-video-title">'+escapeHtml(item.video.title)+'</span>' : '')+(ch ? '<span class="result-video-channel">'+escapeHtml(ch)+'</span>' : '')+'</div></div></a>' : '';
       const iconsPart = videoIconsHtml + (linksHtml || '');
+      const imgHtml = art ? '<img class="album-art" src="'+art+'" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'album-art\'}))">' : '';
+      const artHtml = art && spotifyUrl
+        ? '<a href="'+spotifyUrl+'" target="_blank" rel="noopener" class="album-art-link" title="Open in Spotify">'+imgHtml+'<span class="album-art-spotify-badge">'+SPOTIFY_ICON+'</span></a>'
+        : (art ? imgHtml : '<div class="album-art"></div>');
       card.innerHTML =
-        (art ? '<img class="album-art" src="'+art+'" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'album-art\'}))">' : '<div class="album-art"></div>') +
-        '<div class="result-info">' +
-          '<div class="result-title">' + escapeHtml(item.title) + '</div>' +
-          '<div class="result-artist">' + escapeHtml(item.artist) + '</div>' +
-          (item.album && item.album !== item.title ? '<div class="result-meta">' + escapeHtml(item.album) + '</div>' : '') +
+        '<div class="result-info-combo">' +
+          artHtml +
+          '<div class="result-info">' +
+            '<div class="result-title">' + escapeHtml(item.title) + '</div>' +
+            '<div class="result-artist">' + escapeHtml(item.artist) + '</div>' +
+            (item.album && item.album !== item.title ? '<div class="result-meta">' + escapeHtml(item.album) + '</div>' : '') +
+          '</div>' +
         '</div>' +
-        '<div class="result-col-video">' + (videoPart || '') + '</div>' +
-        '<div class="result-col-icons">' + iconsPart + '</div>';
+        '<div class="result-extra-combo">' +
+          '<div class="result-col-video">' + (videoPart || '') + '</div>' +
+          '<div class="result-col-icons">' + iconsPart + '</div>' +
+        '</div>';
       return card;
     }
 
@@ -2949,9 +3009,8 @@
       try {
         const spotifyOpts = opts || {};
         /* Spotify color-lyrics API returns 403 — use LRCLIB only */
-        const searchRes = await fetch('https://lrclib.net/api/search?' + new URLSearchParams({
-          track_name: title, artist_name: artist
-        }));
+        const lrcParams = { track_name: title, artist_name: artist };
+        const searchRes = await fetch('https://lrclib.net/api/search?' + new URLSearchParams(lrcParams));
         if (lyricsForKey !== key) return;
 
         if (searchRes.ok) {
@@ -2998,6 +3057,7 @@
 
     const searchDebugBox = document.getElementById('searchDebugBox');
     let _lastDebugTier = null;
+    let _channelHeaderShown = false;
     function applySearchDebugVisibility() {
       if (searchDebugBox) {
         searchDebugBox.classList.toggle('debug-visible', !!settings.searchDebug);
@@ -3011,14 +3071,30 @@
     applySocialPostsVisibility();
     function appendDebugLog(opts) {
       if (!searchDebugBox || !settings.searchDebug) return;
+      /* No Query logs — only YouTube search logs (searching-yt, tier status, channel, etc.) */
+      if (opts.type === 'query') return;
+      /* Show Channel header for channel-related logs (like tier headers) */
+      const channelTypes = ['channel', 'channel-skipped', 'channel-videos', 'channel-loading', 'channel-videos-fetch'];
+      if (channelTypes.includes(opts.type) && !_channelHeaderShown) {
+        const sep = document.createElement('div');
+        sep.className = 'db-separator';
+        searchDebugBox.appendChild(sep);
+        const header = document.createElement('div');
+        header.className = 'db-tier-header';
+        header.textContent = '---- Channel ----';
+        searchDebugBox.appendChild(header);
+        const sep2 = document.createElement('div');
+        sep2.className = 'db-separator';
+        searchDebugBox.appendChild(sep2);
+        _channelHeaderShown = true;
+      }
       const div = document.createElement('div');
       div.className = 'db-line';
       const esc = escapeHtml;
       if (opts.type === 'unembeddable') {
-        const title = (opts.title || '').slice(0, 50) + ((opts.title || '').length > 50 ? '…' : '');
         const nextNote = opts.idx < opts.total ? ' <span class="db-trying">→ next</span>' : '';
         const reasonNote = opts.reason ? ' <span class="db-status">(' + esc(opts.reason) + ')</span>' : '';
-        div.innerHTML = '  <span class="db-fail">✗</span> [' + opts.idx + '/' + opts.total + '] <span class="db-query">' + esc(title) + '</span> — failed' + reasonNote + nextNote;
+        div.innerHTML = '  <span class="db-fail">✗</span> [' + opts.idx + '/' + opts.total + '] failed' + reasonNote + nextNote;
       } else if (opts.type === 'playlist-playing') {
         const title = (opts.title || '').slice(0, 55) + ((opts.title || '').length > 55 ? '…' : '');
         div.innerHTML = '  <span class="db-ok">✓ Playlist: playing</span> <span class="db-query">' + esc(title) + '</span>' + (opts.author ? ' <span class="db-status">(' + esc(opts.author) + ')</span>' : '');
@@ -3028,10 +3104,39 @@
         const title = (opts.title || opts.videoId || '').slice(0, 50) + ((opts.title || opts.videoId || '').length > 50 ? '…' : '');
         div.innerHTML = '  <span class="db-fail">' + label + '</span> <span class="db-query">' + esc(title) + '</span> <span class="db-status">(code ' + opts.code + ')</span>';
       } else if (opts.type === 'loaded') {
+        div.innerHTML = '  <span class="db-ok">✓</span> [' + opts.idx + '/' + opts.total + '] loaded';
+      } else if (opts.type === 'video-loading') {
         const title = (opts.title || '').slice(0, 50) + ((opts.title || '').length > 50 ? '…' : '');
-        div.innerHTML = '  <span class="db-ok">✓</span> [' + opts.idx + '/' + opts.total + '] <span class="db-query">' + esc(title) + '</span> — loaded';
+        div.innerHTML = '  <span class="db-status">Loading</span> [' + opts.idx + '/' + opts.total + '] <span class="db-query">' + esc(title) + '</span>…';
+      } else if (opts.type === 'random-location') {
+        const rangeNote = opts.rangeDesc ? ' <span class="db-status">(' + esc(opts.rangeDesc) + ')</span>' : '';
+        div.innerHTML = '<span class="db-status">Random location selected:</span> <span class="db-query">' + Math.floor((opts.startSec || 0) / 60) + 'm ' + ((opts.startSec || 0) % 60) + 's</span>' + rangeNote;
       } else if (opts.type === 'channel-skipped') {
         div.innerHTML = '<span class="db-status">Channel videos skipped</span> <span class="db-query">' + esc(opts.reason || 'no valid @handle or channelId') + '</span>';
+      } else if (opts.type === 'channel-loading') {
+        const handleText = opts.handle ? '@' + esc(opts.handle) : (opts.channelId ? esc(opts.channelId) : 'channel');
+        div.innerHTML = '<span class="db-status">Loading channel videos</span> <span class="db-query">' + handleText + '</span>';
+      } else if (opts.type === 'channel-videos-fetch') {
+        if (opts.status === 'error') {
+          div.innerHTML = '<span class="db-fail">fetch failed</span>' + (opts.error ? ' <span class="db-status">(' + esc(opts.error) + ')</span>' : '');
+        } else {
+          div.innerHTML = '<span class="db-ok">✓ loaded</span>';
+        }
+      } else if (opts.type === 'channel') {
+        const hasAny = opts.handle || opts.name || opts.channelId;
+        const found = (opts.found || hasAny) && hasAny;
+        const chClass = found ? 'db-ok' : 'db-fail';
+        let text = '';
+        if (found) {
+          const parts = [];
+          if (opts.handle) parts.push('@' + esc(opts.handle));
+          if (opts.name && opts.name !== opts.handle) parts.push(esc(opts.name));
+          if (opts.channelId) parts.push(esc(opts.channelId));
+          text = '<span class="' + chClass + '">found: </span><span class="db-query">' + (parts.join(' ') || esc(opts.name || opts.handle || '')) + '</span>';
+        } else {
+          text = '<span class="' + chClass + '">none found</span>' + (opts.next ? ' <span class="db-status">(' + esc(opts.next) + ')</span>' : '');
+        }
+        div.innerHTML = text;
       } else if (opts.type === 'channel-videos') {
         /* Only log "No videos on channel match" — never "X on channel match" under YouTube: found */
         const matched = opts.matched || [];
@@ -3042,6 +3147,9 @@
         }
         searchDebugBox.scrollTop = searchDebugBox.scrollHeight;
         return;
+      } else if (opts.type === 'searching-yt') {
+        const q = esc(String(opts.query || '').slice(0, 120) + (String(opts.query || '').length > 120 ? '…' : ''));
+        div.innerHTML = '<span class="db-status">Searching YouTube For:</span> <span class="db-query">' + q + '</span>';
       } else {
         const tierLabel = opts.tierLabel || '';
         const isVideoTier = TIER_LABELS.includes(tierLabel);
@@ -3239,29 +3347,21 @@
 
       const startSecFloor = Math.max(0, Math.floor(startSec || 0));
       const useRandomStart = startSecFloor > 0;
-      /* When random start: create empty player, cue at position in onReady (avoids loading from 0) */
+      /* When random start: use videoId + start param so YouTube loads directly at position (faster than cueVideoById) */
       const playerConfig = {
         height: '100%',
         width: '100%',
         playerVars: {
-          autoplay: useRandomStart ? 0 : 1,
+          autoplay: 1,
           mute: 1, controls: 0, loop: 1, playlist: videoId,
           modestbranding: 1, iv_load_policy: 3, disablekb: 1, playsinline: 1,
-          rel: 0, start: useRandomStart ? 0 : startSecFloor
+          rel: 0, start: startSecFloor
         },
         events: {
           onReady: function(e) {
-            console.log('[Video] YouTube player ready: ' + videoId);
+            console.log('[Video] YouTube player ready: ' + videoId + (useRandomStart ? ' (start: ' + Math.floor(startSecFloor / 60) + 'm ' + (startSecFloor % 60) + 's)' : ''));
             if (useRandomStart && e.target) {
-              console.log('[Video] Random start: cueing at ' + Math.floor(startSecFloor / 60) + 'm ' + (startSecFloor % 60) + 's');
-              /* cueVideoById loads at position; playVideo() starts. Fallback: seekTo when playing in case cue failed */
               window._pendingSeek = { player: e.target, start: startSecFloor };
-              try {
-                e.target.cueVideoById({ videoId: videoId, startSeconds: startSecFloor });
-                e.target.playVideo();
-              } catch (_) {
-                try { e.target.seekTo(startSecFloor, true); e.target.playVideo(); } catch (__) {}
-              }
             }
             /* Fallback: if video never starts playing, treat as failed. Long timeout for slow buffering. */
             const baseTimeoutMs = useRandomStart ? 120000 : 90000; /* 2 min / 1.5 min */
@@ -3308,7 +3408,7 @@
           }
         }
       };
-      if (!useRandomStart) playerConfig.videoId = videoId;
+      playerConfig.videoId = videoId;
       try {
         _ytPlayer = new YT.Player(div.id, playerConfig);
       } catch (err) {
@@ -3511,7 +3611,13 @@
       const parts = text.toLowerCase().split(/[\s,&]+/).filter(p => p.length > 2);
       return parts.length > 0 && parts.every(p => tNorm.includes(normalize(p)) || t.includes(p));
     }
-
+    /** For Live (fan): require entire artist name in title (e.g. "Of The Trees" not just "Trees"). */
+    function titleContainsFullArtist(v, artist) {
+      if (!artist || !artist.trim()) return false;
+      const tNorm = normalize(v.title || '');
+      const aNorm = normalize(artist.trim());
+      return aNorm.length > 0 && tNorm.includes(aNorm);
+    }
     function isArtistLive(v) {
       const t = (v.title || '').toLowerCase();
       const a = _searchArtist.toLowerCase();
@@ -3635,22 +3741,29 @@
 
     function tryEmbedYt(candidates, idx, startSec, key, tierLabel, onAllFailed, retriedFromStart) {
       if (videoForKey !== key) return;
-      /* When option enabled, skip to random point in long live sets (Live or Live fan tier) */
-      let actualStart = startSec;
-      const useRandomStart = !retriedFromStart && (settings.randomLiveStart || !!document.getElementById('randomLiveStartCb')?.checked) && (tierLabel === 'Live' || tierLabel === 'Live (fan)');
-      if (useRandomStart) {
-        actualStart = Math.floor(Math.random() * 900); /* 0–15 min — shorter range buffers faster, fewer timeouts */
-        console.log('[Video] Random start: ' + Math.floor(actualStart / 60) + 'm ' + (actualStart % 60) + 's (0–15 min)');
-      }
       if (idx >= candidates.length) {
         console.log('[Video] All YouTube candidates unavailable, falling back');
         if (onAllFailed) onAllFailed();
         return;
       }
       const v = candidates[idx];
+      /* When option enabled, skip to random point in long live sets. Range: 0 to (videoLength - songLength). */
+      let actualStart = startSec;
+      const useRandomStart = !retriedFromStart && (settings.randomLiveStart || !!document.getElementById('randomLiveStartCb')?.checked) && (tierLabel === 'Live' || tierLabel === 'Live (fan)');
+      if (useRandomStart && v) {
+        const vidSec = Number(v.duration) || 0;
+        const songSec = _searchDurationMs ? Math.floor(_searchDurationMs / 1000) : 0;
+        let maxStart = Math.max(0, vidSec - songSec);
+        if (maxStart <= 0 && vidSec === 0) maxStart = 900; /* fallback 0–15 min when duration unknown (e.g. live stream) */
+        actualStart = maxStart > 0 ? Math.floor(Math.random() * (maxStart + 1)) : 0;
+        const rangeDesc = maxStart > 0 ? '0–' + Math.floor(maxStart / 60) + 'm' + (maxStart % 60 ? ' ' + (maxStart % 60) + 's' : '') : '0';
+        console.log('[Video] Random start: ' + Math.floor(actualStart / 60) + 'm ' + (actualStart % 60) + 's (' + rangeDesc + ')');
+        appendDebugLog({ type: 'random-location', startSec: actualStart, rangeDesc });
+      }
       const videoData = { platform: 'youtube', id: v.id, title: v.title, channel: v['owner.screenname'] || '', url: 'https://www.youtube.com/watch?v=' + v.id, thumb: 'https://img.youtube.com/vi/' + v.id + '/hqdefault.jpg' };
       currentSongVideo = { key, data: videoData };
       console.log('[Video] YouTube trying ' + (idx + 1) + '/' + candidates.length + ': ' + v.title);
+      appendDebugLog({ type: 'video-loading', title: v.title, idx: idx + 1, total: candidates.length, randomStart: useRandomStart ? actualStart : undefined });
       embedYouTube(v.id, actualStart, v.title, v['owner.screenname'], (reason) => {
         const isTimeout = /timeout/i.test(reason || '');
         if (isTimeout && useRandomStart && !retriedFromStart) {
@@ -3766,6 +3879,8 @@
         /* Use artist + title when artist is short/ambiguous to favor music artist over celebrity (e.g. Fallon vs Jimmy Fallon) */
         const ambiguous = !artist || artist.length < 12 || !/\s/.test(artist);
         const searchQ = (title && ambiguous) ? (artist + ' ' + title) : artist;
+        console.log('[DJ Live] Query: YouTube channel lookup (find official)', JSON.stringify(searchQ));
+        appendDebugLog({ type: 'query', api: 'YouTube channel lookup', query: searchQ });
         const target = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(searchQ);
         const html = await fetchYtHtml(target, { signal: AbortSignal.timeout(15000), headers: { 'Accept': 'text/html' } });
         if (videoForKey !== key || !html) return { found: false, name: '', handle: '', channelId: '', channelsSeen: [] };
@@ -3811,6 +3926,9 @@
 
     async function ytSearch(query, key) {
       try {
+        const qStr = typeof query === 'string' ? query : JSON.stringify(query);
+        console.log('[DJ Live] Searching YouTube For:', qStr);
+        appendDebugLog({ type: 'searching-yt', query: qStr });
         const target = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query);
         const html = await fetchYtHtml(target, { signal: AbortSignal.timeout(18000), headers: { 'Accept': 'text/html' } });
         if (videoForKey !== key) return null;
@@ -3952,6 +4070,8 @@
         if ((window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
           const params = isChannelId ? { channelId: clean } : { handle: clean };
           const channelApi = apiUrl('/api/youtube/channel?' + new URLSearchParams(params));
+          console.log('[DJ Live] Query: YouTube channel', JSON.stringify(params));
+          appendDebugLog({ type: 'query', api: 'YouTube channel', query: (params.handle ? '@' + params.handle : '') || params.channelId || '' });
           const apiRes = await fetch(channelApi, { signal: AbortSignal.timeout(18000) });
           if (videoForKey !== key) return [];
           if (apiRes.ok) {
@@ -4038,6 +4158,7 @@
       if (searchDebugBox) {
         searchDebugBox.innerHTML = '';
         _lastDebugTier = null;
+        _channelHeaderShown = false;
         if (settings.searchDebug) {
           const mode = settings.proxyMode || 'cors';
           const head = document.createElement('div');
@@ -4053,6 +4174,17 @@
       const hasChannelTiersEnabled = tierEnabled[0] || tierEnabled[1] || tierEnabled[2];
       const oc = hasChannelTiersEnabled ? await findOfficialChannel(mainArtist, key, title) : { found: false, name: '', handle: '', channelId: '', channelsSeen: [] };
       const hasValidChannel = oc?.channelId || (oc?.handle && !/\s/.test((oc.handle || '')));
+      if (settings.searchDebug && hasChannelTiersEnabled) {
+        appendDebugLog({ type: 'channel', found: !!hasValidChannel || !!(oc?.name || oc?.handle || oc?.channelId), name: oc?.name || '', handle: oc?.handle || '', channelId: oc?.channelId || '', next: !hasValidChannel && tierEnabled[3] ? 'skipping to Live (fan)' : '' });
+      }
+      /* Load channel videos once in Channel section when deep search enabled */
+      let cachedChannelVideos = null;
+      if (hasValidChannel && settings.deepSearch && hasChannelTiersEnabled) {
+        if (searchDebugBox && settings.searchDebug) {
+          appendDebugLog({ type: 'channel-loading', handle: oc?.handle || '', channelId: oc?.channelId || '' });
+        }
+        cachedChannelVideos = await ytChannelVideos(oc.channelId || ('@' + (oc.handle || '').trim()), key) || [];
+      }
       if (hasChannelTiersEnabled && !hasValidChannel) {
         const channelDetail = tierEnabled[3] ? 'skipping to Live (fan)' : '';
         showSearchStatus('Channel', '', 'none found', channelDetail);
@@ -4082,13 +4214,13 @@
         const musicVideoTierConfig = hasValidChannel
           ? { useChannelSearch: true, queries: musicVideoQueries, filterByChannel: true, filterExcludeLive: true, maxRank: 3, tier: 2 }
           : { q: mainArtist + ' ' + title + ' official music video', maxRank: 3, tier: 2 };
-        /* Song live first; artist live only in retryQueries after song live fails */
+        /* Song live + artist live — search both and merge results */
         const liveQueries = hasValidChannel && h
-          ? ['@' + h + ' ' + title + ' live', mainArtist + ' ' + title + ' live']
-          : [mainArtist + ' ' + title + ' live'];
+          ? [title + ' live', '@' + h + ' ' + title + ' live', mainArtist + ' live']
+          : [title + ' live', mainArtist + ' live'];
         const liveTierConfig = hasValidChannel
-          ? { useChannelSearch: true, queries: liveQueries, filterByChannel: true, filterLive: true, maxRank: 2, tier: 1, retryQueries: [mainArtist + ' live', mainArtist + ' concert', mainArtist + ' full set'] }
-          : { queries: liveQueries, maxRank: 2, tier: 1, retryQueries: [mainArtist + ' live', mainArtist + ' concert', mainArtist + ' full set'] };
+          ? { useChannelSearch: true, queries: liveQueries, filterByChannel: true, filterLive: true, maxRank: 2, tier: 1, alwaysMergeQueries: true, retryQueries: [mainArtist + ' concert', mainArtist + ' full set'] }
+          : { queries: liveQueries, maxRank: 2, tier: 1, alwaysMergeQueries: true, retryQueries: [mainArtist + ' concert', mainArtist + ' full set'] };
         const liveFanQueries = [mainArtist + ' ' + title + ' live', mainArtist + ' live', mainArtist + ' ' + title + ' concert', mainArtist + ' concert', mainArtist + ' live set'];
         const liveFanTierConfig = { queries: liveFanQueries, filterByChannel: false, filterLive: true, allowUnofficial: true, filterByTitle: false, maxRank: 3, tier: 3, retryQueries: [mainArtist + ' full set', mainArtist + ' ' + title] };
         const configs = [
@@ -4097,7 +4229,15 @@
           musicVideoTierConfig,
           liveFanTierConfig
         ];
-        return configs[tierIdx] ? { ...configs[tierIdx] } : null;
+        let cfg = configs[tierIdx] ? { ...configs[tierIdx] } : null;
+        if (cfg && settings.only4k) {
+          const suffix = ' 4k';
+          if (cfg.queries) cfg = { ...cfg, queries: cfg.queries.map(q => q + suffix) };
+          if (cfg.q) cfg = { ...cfg, q: cfg.q + suffix };
+          if (cfg.retryQueries) cfg = { ...cfg, retryQueries: cfg.retryQueries.map(q => q + suffix) };
+          if (cfg.fallbackQ) cfg = { ...cfg, fallbackQ: cfg.fallbackQ + suffix };
+        }
+        return cfg;
       }
       /* No official channel: skip Visualizer/Live/Music Video (they need channel); only try Live (fan) if enabled, else fallback */
       const orderedTiers = hasValidChannel
@@ -4124,28 +4264,36 @@
           if (tierIdx === 0 && !s.useChannelSearch && oc?.found && oc?.name) {
             appendDebugLog({ type: 'channel-skipped', reason: 'need @handle or channelId (have name only)', name: oc.name });
           }
-          showSearchStatus(tierLabel, 'yt', 'searching...', qDisplay);
           let listRaw;
+          const hasValidChannelForTier = oc?.channelId || (oc?.handle && !/\s/.test((oc.handle || '')));
+          const useChannelOnly = settings.deepSearch && hasValidChannelForTier && s.filterByChannel && (s.tier === 0 || s.tier === 1 || s.tier === 2);
+          if (useChannelOnly) {
+            showSearchStatus(tierLabel, 'yt', 'filtering...', 'channel videos');
+            listRaw = (cachedChannelVideos || []).slice();
+          } else {
+            showSearchStatus(tierLabel, 'yt', 'searching...', qDisplay);
           if (s.queries) {
             const hasLiveInTitle = v => /\blive\b|\bconcert\b|\bperformanc|\bfestival\b|\bunplugged\b/.test((v.title || '').toLowerCase());
             const channelFilter = s.allowUnofficial ? (v) => true : (s.filterByChannel && oc ? (v) => isFromOfficialChannel(v, oc) : (v) => isOfficialChannel(v));
             const hasVideoInTitle = v => /\bvideo\b/.test((v.title || '').toLowerCase());
             const minDurationSec = _searchDurationMs ? Math.floor(_searchDurationMs / 1000) : 0;
             const videoLongerThanSong = v => !minDurationSec || !v.duration || v.duration >= minDurationSec;
+            const has4kInTitle = v => /4k|2160p|UHD|ultra\s*hd/i.test(v.title || '');
             const filterList = (raw) => {
               let L = raw.filter(channelFilter);
               if (s.filterLive) L = L.filter(hasLiveInTitle);
               if (s.filterByChannel && s.tier === 0) L = L.filter(v => titleContains(v, title));
               if (s.filterByTitle && s.tier === 3) L = L.filter(v => titleContains(v, title));
-              if (s.tier === 3) L = L.filter(v => titleContains(v, _searchArtist));
+              if (s.tier === 3) L = L.filter(v => titleContainsFullArtist(v, _searchArtist));
               if (s.tier === 2) L = L.filter(v => hasVideoInTitle(v) && titleContains(v, title));
               if ((s.tier === 1 || s.tier === 3) && minDurationSec) L = L.filter(videoLongerThanSong);
+              if (settings.only4k) L = L.filter(has4kInTitle);
               return L;
             };
             const firstQ = s.queries[0];
             listRaw = firstQ ? await searchFn(firstQ, key) : null;
             let list = filterList(listRaw || []);
-            if (list.length === 0 && s.queries.length > 1) {
+            if ((list.length === 0 || s.alwaysMergeQueries) && s.queries.length > 1) {
               const rest = dedupeById((await Promise.all(s.queries.slice(1).map(q => searchFn(q, key)))).map(r => r || []).flat());
               listRaw = dedupeById([...(listRaw || []), ...rest]);
               list = filterList(listRaw);
@@ -4156,9 +4304,11 @@
             const searchQ = s.fallbackQ || s.q;
             listRaw = searchQ ? await searchFn(searchQ, key) : null;
           }
+          }
           if (videoForKey !== key) return;
           const hasLiveInTitle = v => /\blive\b|\bconcert\b|\bperformanc|\bfestival\b|\bunplugged\b/.test((v.title || '').toLowerCase());
           const hasVideoInTitle = v => /\bvideo\b/.test((v.title || '').toLowerCase());
+          const has4kInTitle = v => /4k|2160p|UHD|ultra\s*hd/i.test(v.title || '');
           const channelFilter = s.allowUnofficial ? (v) => true : (s.filterByChannel && oc ? (v) => isFromOfficialChannel(v, oc) : (v) => isOfficialChannel(v));
           const minDurationSec = _searchDurationMs ? Math.floor(_searchDurationMs / 1000) : 0;
           const videoLongerThanSong = v => !minDurationSec || !v.duration || v.duration >= minDurationSec;
@@ -4166,20 +4316,23 @@
           if (s.filterLive) list = list.filter(hasLiveInTitle);
           if (s.filterByChannel && s.tier === 0) list = list.filter(v => titleContains(v, title));
           if (s.filterByTitle && s.tier === 3) list = list.filter(v => titleContains(v, title));
-          if (s.tier === 3) list = list.filter(v => titleContains(v, _searchArtist));
+          if (s.tier === 3) list = list.filter(v => titleContainsFullArtist(v, _searchArtist));
           if (s.tier === 2) list = list.filter(v => hasVideoInTitle(v) && titleContains(v, title));
           if ((s.tier === 1 || s.tier === 3) && minDurationSec) list = list.filter(videoLongerThanSong);
+          if (settings.only4k) list = list.filter(has4kInTitle);
           if ((s.filterByChannel || s.allowUnofficial) && s.tier !== 3 && (!list || list.length === 0) && searchDebugBox && settings.searchDebug) {
             appendDebugLog({ type: 'channel-videos', videos: listRaw || [], matched: list });
           }
-          if (s.queries) console.log('[Video][YouTube] Tier ' + s.tier + ' → "' + qDisplay + '" → ' + (list?.length || 0) + ' merged');
+          if (useChannelOnly) console.log('[Video][YouTube] Tier ' + s.tier + ' → channel only → ' + (list?.length || 0) + ' videos');
+          else if (s.queries) console.log('[Video][YouTube] Tier ' + s.tier + ' → "' + qDisplay + '" → ' + (list?.length || 0) + ' merged');
           else console.log('[Video][YouTube] Tier ' + s.tier + ' → searching "' + (s.fallbackQ || s.q) + '"');
           if (videoForKey !== key) return;
-          /* If no hits, retry with channel "title" (exact phrase) */
-          if ((!list || list.length === 0) && title && title.length > 2) {
+          /* If no hits, retry with channel "title" (exact phrase) — skip for useChannelOnly (already have all channel videos) */
+          if (!useChannelOnly && (!list || list.length === 0) && title && title.length > 2) {
             const qTitle = '"' + title.replace(/"/g, '') + '"';
             const channelPart = (oc?.name && oc.name.trim()) ? oc.name.trim() : ((oc?.handle || '').trim() ? '@' + (oc.handle || '').trim() : mainArtist);
-            const quotedQuery = (s.tier === 1 || s.tier === 3) ? channelPart + ' ' + qTitle + ' live' : channelPart + ' ' + qTitle;
+            let quotedQuery = (s.tier === 1 || s.tier === 3) ? channelPart + ' ' + qTitle + ' live' : channelPart + ' ' + qTitle;
+            if (settings.only4k) quotedQuery += ' 4k';
             showSearchStatus(tierLabel, 'yt', 'trying quoted...', quotedQuery);
             const quotedRaw = await searchFn(quotedQuery, key);
             if (videoForKey !== key) return;
@@ -4188,18 +4341,18 @@
             if (s.filterLive) list = list.filter(hasLiveInTitle);
             if (s.filterByChannel && s.tier === 0) list = list.filter(v => titleContains(v, title));
             if (s.filterByTitle && s.tier === 3) list = list.filter(v => titleContains(v, title));
-            if (s.tier === 3) list = list.filter(v => titleContains(v, _searchArtist));
+            if (s.tier === 3) list = list.filter(v => titleContainsFullArtist(v, _searchArtist));
             if (s.tier === 2) list = list.filter(v => hasVideoInTitle(v) && titleContains(v, title));
             if ((s.tier === 1 || s.tier === 3) && minDurationSec) list = list.filter(videoLongerThanSong);
+            if (settings.only4k) list = list.filter(has4kInTitle);
             if ((!list || list.length === 0) && s.tier !== 3 && searchDebugBox && settings.searchDebug) {
               appendDebugLog({ type: 'channel-videos', videos: listRaw || [], matched: list });
             }
           }
-          /* If still no hits, load all channel videos (only when deep search enabled) */
+          /* If still no hits, use cached channel videos (skip for useChannelOnly — already used cache) */
           const hasValidChannel = oc?.channelId || (oc?.handle && !/\s/.test((oc.handle || '')));
-          if ((!list || list.length === 0) && hasValidChannel && s.filterByChannel && settings.deepSearch) {
-            showSearchStatus(tierLabel, 'yt', 'loading channel videos...', oc.handle ? '@' + oc.handle : 'channel');
-            const channelVids = await ytChannelVideos(oc.channelId || ('@' + (oc.handle || '').trim()), key);
+          if (!useChannelOnly && (!list || list.length === 0) && hasValidChannel && s.filterByChannel && settings.deepSearch) {
+            const channelVids = cachedChannelVideos || [];
             if (videoForKey !== key) return;
               if (channelVids?.length) {
               listRaw = dedupeById([...(listRaw || []), ...channelVids]);
@@ -4209,14 +4362,15 @@
               if (s.tier === 0) fromChannel = fromChannel.filter(v => titleContains(v, title));
               if (s.tier === 2) fromChannel = fromChannel.filter(v => /\bvideo\b/.test((v.title || '').toLowerCase()) && titleContains(v, title));
               if ((s.tier === 1 || s.tier === 3) && minDurationSec) fromChannel = fromChannel.filter(videoLongerThanSong);
+              if (settings.only4k) fromChannel = fromChannel.filter(has4kInTitle);
               list = fromChannel;
               if ((!list || list.length === 0) && searchDebugBox && settings.searchDebug) {
                 appendDebugLog({ type: 'channel-videos', videos: channelVids, matched: list, source: 'channel-page' });
               }
             }
           }
-          /* Live tier: when song live returns nothing, try artist live (and other retry queries) before giving up */
-          if ((!list || list.length === 0) && s.retryQueries?.length && s.tier === 1) {
+          /* Live tier: when song live returns nothing, try artist live (and other retry queries) before giving up — skip for useChannelOnly (already have all channel videos) */
+          if (!useChannelOnly && (!list || list.length === 0) && s.retryQueries?.length && s.tier === 1) {
             showSearchStatus(tierLabel, 'yt', 'trying artist live...', s.retryQueries[0]);
             const retryRaw = dedupeById((await Promise.all(s.retryQueries.map(q => searchFn(q, key)))).map(r => r || []).flat());
             if (videoForKey !== key) return;
@@ -4242,14 +4396,14 @@
                   if (videoForKey !== key) return;
                   currentSongVideo = null;
                   const rq = s.retryQueries;
-                  if (rq?.length && s.tier !== 3) {
+                  if (rq?.length && s.tier !== 3 && !useChannelOnly) {
                     showSearchStatus(tierLabel, 'yt', 'retrying different query...', rq[0]);
                     const retryListRaw = dedupeById((await Promise.all(rq.map(q => ytSearch(q, key)))).map(r => r || []).flat());
                     const retryChannelFilter = s.allowUnofficial ? (v) => true : (s.filterByChannel && oc ? (v) => isFromOfficialChannel(v, oc) : (v) => isOfficialChannel(v));
                     let retryList = (retryListRaw || []).filter(retryChannelFilter);
                     if (s.filterLive) retryList = retryList.filter(v => /\blive\b|\bconcert\b|\bperformanc|\bfestival\b|\bunplugged\b/.test((v.title || '').toLowerCase()));
                     if (s.filterByTitle && s.tier === 3) retryList = retryList.filter(v => titleContains(v, title));
-                    if (s.tier === 3) retryList = retryList.filter(v => titleContains(v, _searchArtist));
+                    if (s.tier === 3) retryList = retryList.filter(v => titleContainsFullArtist(v, _searchArtist));
                     if (s.tier === 2) retryList = retryList.filter(v => /\bvideo\b/.test((v.title || '').toLowerCase()) && titleContains(v, title));
                     if ((s.tier === 1 || s.tier === 3) && minDurationSec) retryList = retryList.filter(videoLongerThanSong);
                     const triedIds = new Set(candidates.map(v => v.id));
@@ -4612,6 +4766,7 @@
       fd.append('signature', signature);
       fd.append('timestamp', ts);
 
+      console.log('[DJ Live] Query: ACRCloud identify');
       const res = await fetch('https://' + host + '/v1/identify', { method: 'POST', body: fd });
       trackRequest('acrcloud');
       const data = await res.json();
@@ -4663,6 +4818,7 @@
       fd.append('api_token', settings.auddToken);
       fd.append('return', 'apple_music,spotify');
 
+      console.log('[DJ Live] Query: AudD identify');
       const res = await fetch('https://api.audd.io/', { method: 'POST', body: fd });
       trackRequest('audd');
       const data = await res.json();
@@ -4874,6 +5030,36 @@
 
     micBtn.addEventListener('click', () => {
       if (isListening) stopListening(); else startListening();
+    });
+
+    document.getElementById('demoBtn')?.addEventListener('click', () => {
+      try {
+        const demo = {
+          title: 'Strobe',
+          artist: 'Deadmau5',
+          album: 'For Lack of a Better Name',
+          spotify: { duration_ms: 632000, external_urls: { spotify: 'https://open.spotify.com/track/2QCE6gROKTK9C64A6DsLOP' } },
+          apple_music: { url: 'https://music.apple.com/us/album/strobe/338569591?i=338569595' }
+        };
+        const key = demo.artist + '::' + demo.title;
+        curKey = key;
+        curLabel = demo.title + ' — ' + demo.artist;
+        curTitle = demo.title;
+        curArtist = demo.artist;
+        curDurationMs = 632000;
+        curResult = demo;
+        curStartedAt = performance.now();
+        addHistory(demo, '', null);
+        showNowPlaying(demo, 'Demo');
+        fetchCoverArt(demo);
+        fetchLyrics(demo.title, demo.artist, demo.album, curDurationMs);
+        if (videoForKey !== key) searchAndPlayVideo(demo.title, demo.artist, 0, curDurationMs);
+        startProgress();
+        startLyrics();
+        console.log('[DJ Live] Demo started');
+      } catch (e) {
+        console.error('[DJ Live] Demo failed:', e);
+      }
     });
 
     function openDrawer() {
