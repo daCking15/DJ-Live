@@ -736,6 +736,8 @@
     .search-debug .db-ok { color: #69f0ae; }
     .search-debug .db-fail { color: #ff5252; }
     .search-debug .db-trying { color: #b39ddb; }
+    .search-debug .db-separator { height: 0.35rem; margin: 0.2rem 0; border-bottom: 1px dashed rgba(77,208,225,0.4); }
+    .search-debug .db-tier-header { color: #4dd0e1; font-weight: 600; margin: 0.35rem 0; }
 
     .stg-check {
       display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;
@@ -1317,7 +1319,7 @@
         </label>
         <label class="stg-check" style="margin-top:0.5rem">
           <input type="checkbox" id="randomLiveStartCb">
-          <span>Random start in long live sets (skip to random point 0–50 min)</span>
+          <span>Random start in long live sets (skip to random point 0–15 min)</span>
         </label>
       </div>
       <hr class="stg-divider">
@@ -1333,9 +1335,12 @@
       <hr class="stg-divider">
       <h2>Debug</h2>
       <div class="stg-group">
-        <span class="stg-label">API server URL (for static deploy)</span>
-        <input class="stg-input" id="apiBaseUrl" type="text" placeholder="https://your-server.onrender.com" style="width:100%">
-        <p class="stg-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem">When deploying to GitHub Pages, deploy server.js to Render/Railway/Vercel and enter its URL here. Leave empty for localhost or CORS proxies.</p>
+        <span class="stg-label">YouTube proxy</span>
+        <div class="stg-row" style="flex-wrap:wrap;gap:0.5rem">
+          <button class="stg-radio" data-proxy-mode="cors" type="button">CORS proxy</button>
+          <button class="stg-radio" data-proxy-mode="node" type="button">Node proxy</button>
+        </div>
+        <p class="stg-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem">Use one or the other. Node requires server.js running (e.g. port 3000).</p>
       </div>
       <div class="stg-group">
         <label class="stg-check">
@@ -1513,14 +1518,11 @@
       randomLiveStart: true,
       tierOrder: [2, 0, 1, 3],
       tierEnabled: [true, true, true, false],
-      apiBaseUrl: ''
+      proxyMode: 'cors'
     };
 
     const SETTINGS_KEY = 'djlive_settings2';
-    function apiUrl(path) {
-      const base = (settings.apiBaseUrl || '').trim().replace(/\/$/, '');
-      return base ? (base + (path.startsWith('/') ? path : '/' + path)) : path;
-    }
+    function apiUrl(path) { return path; }
 
     const SETTINGS_KEY2 = SETTINGS_KEY;
     function loadSettings() {
@@ -1540,6 +1542,7 @@
         if (merged.tierOrder.length === 0) merged.tierOrder = [0, 1, 2, 3];
         merged.tierEnabled = merged.tierEnabled.slice(0, 4);
         while (merged.tierEnabled.length < 4) merged.tierEnabled.push(true);
+        if (!['cors', 'node'].includes(merged.proxyMode)) merged.proxyMode = 'cors';
         return merged;
       } catch (_) { return { ...DEFAULTS }; }
     }
@@ -1593,6 +1596,7 @@
     let stgFallbackPlaylistSource = settings.fallbackPlaylistSource || 'djlive';
     let stgTierOrder = [...(settings.tierOrder || [0, 1, 2, 3])];
     let stgTierEnabled = [...(settings.tierEnabled || [true, true, true, false])];
+    let stgProxyMode = settings.proxyMode || 'auto';
     while (stgTierEnabled.length < 4) stgTierEnabled.push(true);
 
     function renderUsageBar(containerId, provider) {
@@ -1658,8 +1662,6 @@
       }
       const lo = settings.lyricsOffsetMs ?? DEFAULTS.lyricsOffsetMs ?? 0;
       document.getElementById('lyricsOffsetMs').value = lo;
-      const apiBaseEl = document.getElementById('apiBaseUrl');
-      if (apiBaseEl) apiBaseEl.value = (settings.apiBaseUrl || '').trim();
       document.getElementById('searchDebugCb').checked = !!settings.searchDebug;
       document.getElementById('deepSearchCb').checked = !!settings.deepSearch;
       document.getElementById('randomLiveStartCb').checked = !!settings.randomLiveStart;
@@ -1671,6 +1673,8 @@
       const fpEl = document.getElementById('fallbackPlaylistUrl');
       if (fpEl) fpEl.value = settings.fallbackPlaylistUrl || '';
       document.getElementById('fallbackPlaylistShuffleCb').checked = !!settings.fallbackPlaylistShuffle;
+      stgProxyMode = settings.proxyMode || 'cors';
+      document.querySelectorAll('[data-proxy-mode]').forEach(b => b.classList.toggle('active', b.dataset.proxyMode === stgProxyMode));
       stgTierOrder = [...(settings.tierOrder || [0, 1, 2, 3])];
       stgTierEnabled = [...(settings.tierEnabled || [true, true])];
       renderTierOrderList();
@@ -1722,6 +1726,14 @@
         fallbackSourceBtns.forEach(b => b.classList.toggle('active', b === btn));
         const fpWrap = document.getElementById('fallbackPlaylistCustomWrap');
         if (fpWrap) fpWrap.style.display = stgFallbackPlaylistSource === 'custom' ? 'block' : 'none';
+      });
+    });
+
+    const proxyModeBtns = settingsOverlay.querySelectorAll('[data-proxy-mode]');
+    proxyModeBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        stgProxyMode = btn.dataset.proxyMode || 'cors';
+        proxyModeBtns.forEach(b => b.classList.toggle('active', b === btn));
       });
     });
 
@@ -2115,7 +2127,7 @@
       settings.fallbackPlaylistSource = stgFallbackPlaylistSource || 'djlive';
       settings.fallbackPlaylistUrl = (settings.fallbackPlaylistSource === 'custom') ? customUrl : '';
       settings.fallbackPlaylistShuffle = !!document.getElementById('fallbackPlaylistShuffleCb')?.checked;
-      settings.apiBaseUrl = (document.getElementById('apiBaseUrl')?.value || '').trim().replace(/\/$/, '');
+      settings.proxyMode = stgProxyMode || 'cors';
       const tierList = document.getElementById('stgTierOrderList');
       if (tierList) {
         const rows = tierList.querySelectorAll('.stg-tier-row');
@@ -2984,6 +2996,7 @@
     const TIER_LABELS = ['Visualizer', 'Live', 'Music Video', 'Live (fan)'];
 
     const searchDebugBox = document.getElementById('searchDebugBox');
+    let _lastDebugTier = null;
     function applySearchDebugVisibility() {
       if (searchDebugBox) {
         searchDebugBox.classList.toggle('debug-visible', !!settings.searchDebug);
@@ -3016,35 +3029,41 @@
       } else if (opts.type === 'loaded') {
         const title = (opts.title || '').slice(0, 50) + ((opts.title || '').length > 50 ? '…' : '');
         div.innerHTML = '  <span class="db-ok">✓</span> [' + opts.idx + '/' + opts.total + '] <span class="db-query">' + esc(title) + '</span> — loaded';
-      } else if (opts.type === 'official-channel') {
-        const name = opts.name || opts.handle || '';
-        const detail = opts.channelsSeen?.length ? ' (channels seen: ' + opts.channelsSeen.slice(0, 5).map(c => esc(c)).join(', ') + (opts.channelsSeen.length > 5 ? '…' : '') + ')' : '';
-        if (opts.found && name) {
-          div.innerHTML = '<span class="db-ok">✓ Official channel</span> <span class="db-query">' + esc(name) + '</span>' + (opts.handle && opts.handle !== name ? ' <span class="db-status">(@' + esc(opts.handle) + ')</span>' : '') + detail;
-        } else {
-          div.innerHTML = '<span class="db-fail">✗ Official channel not found</span>' + detail;
-        }
       } else if (opts.type === 'channel-skipped') {
         div.innerHTML = '<span class="db-status">Channel videos skipped</span> <span class="db-query">' + esc(opts.reason || 'no valid @handle or channelId') + '</span>';
       } else if (opts.type === 'channel-videos') {
+        /* Only log "No videos on channel match" — never "X on channel match" under YouTube: found */
         const matched = opts.matched || [];
         const errNote = opts.error ? ' <span class="db-fail">(' + esc(opts.error) + ')</span>' : '';
         if (matched.length === 0) {
           div.innerHTML = '<span class="db-status">No videos on channel match title</span>' + errNote;
-        } else {
-          const titles = matched.slice(0, 5).map(v => esc((v.title || '').slice(0, 45) + ((v.title || '').length > 45 ? '…' : '')));
-          div.innerHTML = '<span class="db-ok">' + matched.length + ' on channel match:</span> ' + titles.join(' → ') + (matched.length > 5 ? '…' : '');
+          searchDebugBox.appendChild(div);
         }
-        searchDebugBox.appendChild(div);
+        searchDebugBox.scrollTop = searchDebugBox.scrollHeight;
         return;
       } else {
-        const tier = '<span class="db-tier">' + esc(opts.tierLabel || '') + '</span>';
+        const tierLabel = opts.tierLabel || '';
+        const isVideoTier = TIER_LABELS.includes(tierLabel);
         const plat = opts.platform ? ' <span class="db-platform">' + esc(opts.platform === 'yt' ? 'YouTube' : opts.platform === 'dm' ? 'Dailymotion' : opts.platform) + '</span>' : '';
         const failStatuses = /none found|unavailable|retrying|retry|falling back|checking\.\.\./i;
         const st = opts.status === 'found' ? 'db-ok' : (failStatuses.test(opts.status || '') ? 'db-fail' : 'db-status');
         const statusSpan = '<span class="' + st + '">' + esc(opts.status || '') + '</span>';
-        const detail = opts.detail ? '<div style="margin-left:0.5rem;margin-top:0.15rem"><span class="db-query">' + esc((opts.detail || '').slice(0, 80) + ((opts.detail || '').length > 80 ? '…' : '')) + '</span></div>' : '';
-        div.innerHTML = tier + plat + ': ' + statusSpan + detail;
+        const skipDetail = opts.status === 'searching...' || (opts.tierLabel === 'Live (fan)' && opts.status === 'found' && !/\(\d+ videos?\)/.test(opts.detail || ''));
+        const detail = !skipDetail && opts.detail ? '<div style="margin-left:0.5rem;margin-top:0.15rem"><span class="db-query">' + esc((opts.detail || '').slice(0, 80) + ((opts.detail || '').length > 80 ? '…' : '')) + '</span></div>' : '';
+        if (tierLabel && tierLabel !== _lastDebugTier) {
+          const sep = document.createElement('div');
+          sep.className = 'db-separator';
+          searchDebugBox.appendChild(sep);
+          const header = document.createElement('div');
+          header.className = 'db-tier-header';
+          header.textContent = '---- ' + tierLabel + ' ----';
+          searchDebugBox.appendChild(header);
+          const sep2 = document.createElement('div');
+          sep2.className = 'db-separator';
+          searchDebugBox.appendChild(sep2);
+          _lastDebugTier = tierLabel;
+        }
+        div.innerHTML = (plat ? plat + ': ' : '') + statusSpan + detail;
       }
       searchDebugBox.appendChild(div);
       searchDebugBox.scrollTop = searchDebugBox.scrollHeight;
@@ -3227,7 +3246,7 @@
           autoplay: useRandomStart ? 0 : 1,
           mute: 1, controls: 0, loop: 1, playlist: videoId,
           modestbranding: 1, iv_load_policy: 3, disablekb: 1, playsinline: 1,
-          rel: 0, vq: 'hd1080', start: useRandomStart ? 0 : startSecFloor
+          rel: 0, start: useRandomStart ? 0 : startSecFloor
         },
         events: {
           onReady: function(e) {
@@ -3243,13 +3262,26 @@
                 try { e.target.seekTo(startSecFloor, true); e.target.playVideo(); } catch (__) {}
               }
             }
-            /* Fallback: if video never starts playing, treat as failed after 6s */
-            setTimeout(() => {
-              if (!played && _onYtError) {
-                console.warn('[Video] YouTube no play after 6s, treating as failed: ' + videoId);
-                const cb = _onYtError; _onYtError = null; cb('timeout (no play after 6s)');
-              }
-            }, 6000);
+            /* Fallback: if video never starts playing, treat as failed. Long timeout for slow buffering. */
+            const baseTimeoutMs = useRandomStart ? 120000 : 90000; /* 2 min / 1.5 min */
+            const maxWaitMs = 300000; /* 5 min total when buffering */
+            let totalWaited = 0;
+            const playerRef = e.target;
+            function checkTimeout(intervalMs) {
+              if (played || !_onYtError) return;
+              totalWaited += intervalMs;
+              try {
+                const state = playerRef.getPlayerState ? playerRef.getPlayerState() : -1;
+                if (state === 1) { played = true; _onYtError = null; return; }
+                if (state === 3 || state === 5 || state === -1) {
+                  /* BUFFERING, CUED, or UNSTARTED — give more time (up to 4 min total) */
+                  if (totalWaited < maxWaitMs) { setTimeout(() => checkTimeout(20000), 20000); return; }
+                }
+              } catch (_) {}
+              console.warn('[Video] YouTube no play after ' + Math.round(totalWaited / 1000) + 's, treating as failed: ' + videoId);
+              const cb = _onYtError; _onYtError = null; cb('timeout (no play after ' + Math.round(totalWaited / 1000) + 's)');
+            }
+            setTimeout(() => checkTimeout(baseTimeoutMs), baseTimeoutMs);
           },
           onStateChange: function(e) {
             if (e.data === 1) {
@@ -3600,18 +3632,17 @@
       });
     }
 
-    function tryEmbedYt(candidates, idx, startSec, key, tierLabel, onAllFailed) {
+    function tryEmbedYt(candidates, idx, startSec, key, tierLabel, onAllFailed, retriedFromStart) {
       if (videoForKey !== key) return;
       /* When option enabled, skip to random point in long live sets (Live or Live fan tier) */
       let actualStart = startSec;
-      const useRandomStart = (settings.randomLiveStart || !!document.getElementById('randomLiveStartCb')?.checked) && (tierLabel === 'Live' || tierLabel === 'Live (fan)');
+      const useRandomStart = !retriedFromStart && (settings.randomLiveStart || !!document.getElementById('randomLiveStartCb')?.checked) && (tierLabel === 'Live' || tierLabel === 'Live (fan)');
       if (useRandomStart) {
-        actualStart = Math.floor(Math.random() * 3000); /* 0–50 min */
-        console.log('[Video] Random start: ' + Math.floor(actualStart / 60) + 'm ' + (actualStart % 60) + 's (0–50 min)');
+        actualStart = Math.floor(Math.random() * 900); /* 0–15 min — shorter range buffers faster, fewer timeouts */
+        console.log('[Video] Random start: ' + Math.floor(actualStart / 60) + 'm ' + (actualStart % 60) + 's (0–15 min)');
       }
       if (idx >= candidates.length) {
         console.log('[Video] All YouTube candidates unavailable, falling back');
-        appendDebugLog({ type: 'fallback', status: 'All candidates unavailable' });
         if (onAllFailed) onAllFailed();
         return;
       }
@@ -3620,6 +3651,13 @@
       currentSongVideo = { key, data: videoData };
       console.log('[Video] YouTube trying ' + (idx + 1) + '/' + candidates.length + ': ' + v.title);
       embedYouTube(v.id, actualStart, v.title, v['owner.screenname'], (reason) => {
+        const isTimeout = /timeout/i.test(reason || '');
+        if (isTimeout && useRandomStart && !retriedFromStart) {
+          console.log('[Video] Timeout on random start, retrying from beginning...');
+          appendDebugLog({ type: 'unembeddable', title: v.title, id: v.id, idx: idx + 1, total: candidates.length, reason: 'timeout, retrying from start' });
+          tryEmbedYt(candidates, idx, 0, key, tierLabel, onAllFailed, true);
+          return;
+        }
         console.log('[Video] Unavailable' + (reason ? ': ' + reason : '') + ', trying next...');
         appendDebugLog({ type: 'unembeddable', title: v.title, id: v.id, idx: idx + 1, total: candidates.length, reason });
         tryEmbedYt(candidates, idx + 1, startSec, key, tierLabel, onAllFailed);
@@ -3642,15 +3680,14 @@
     ];
     let ytSearchOk = null;
 
-    /** Fetch YouTube HTML — try CORS first unless we're on Node server (port 3000) or apiBaseUrl is set */
+    /** Fetch YouTube HTML — cors OR node only (no fallback) */
     async function fetchYtHtml(url, opts) {
-      const o = { ...opts, signal: opts?.signal || AbortSignal.timeout(10000) };
-      const port = parseInt(window.location.port || '80', 10);
-      const hasNodeServer = !!(settings.apiBaseUrl || '').trim() || (port === 3000 && /localhost|127\.0\.0\.1/i.test(window.location.hostname));
+      const o = { ...opts, signal: opts?.signal || AbortSignal.timeout(18000) };
+      const mode = settings.proxyMode || 'cors';
       const isValidYtHtml = (text) => text && typeof text === 'string' && text.includes(YT_INITIAL_MARKER);
       const tryServer = () => {
         const proxyPath = '/api/proxy?url=' + encodeURIComponent(url);
-        return fetch(apiUrl(proxyPath), o).then(r => r.ok ? r.text() : null);
+        return fetch(proxyPath, o).then(r => r.ok ? r.text() : null);
       };
       const tryCors = async () => {
         for (let i = 0; i < CORS_PROXIES.length; i++) {
@@ -3672,14 +3709,8 @@
         }
         return null;
       };
-      if (hasNodeServer) {
-        const html = await tryServer();
-        if (html) return html;
-        return await tryCors();
-      }
-      const html = await tryCors();
-      if (html) return html;
-      return await tryServer();
+      if (mode === 'node') return await tryServer();
+      return await tryCors();
     }
 
     function parseYtInitialData(html) {
@@ -3735,7 +3766,7 @@
         const ambiguous = !artist || artist.length < 12 || !/\s/.test(artist);
         const searchQ = (title && ambiguous) ? (artist + ' ' + title) : artist;
         const target = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(searchQ);
-        const html = await fetchYtHtml(target, { signal: AbortSignal.timeout(8000), headers: { 'Accept': 'text/html' } });
+        const html = await fetchYtHtml(target, { signal: AbortSignal.timeout(15000), headers: { 'Accept': 'text/html' } });
         if (videoForKey !== key || !html) return { found: false, name: '', handle: '', channelId: '', channelsSeen: [] };
         const data = parseYtInitialData(html);
         if (!data) return { found: false, name: '', handle: '', channelId: '', channelsSeen: [] };
@@ -3780,7 +3811,7 @@
     async function ytSearch(query, key) {
       try {
         const target = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query);
-        const html = await fetchYtHtml(target, { signal: AbortSignal.timeout(10000), headers: { 'Accept': 'text/html' } });
+        const html = await fetchYtHtml(target, { signal: AbortSignal.timeout(18000), headers: { 'Accept': 'text/html' } });
         if (videoForKey !== key) return null;
         if (!html) return null;
         const data = parseYtInitialData(html);
@@ -3900,7 +3931,7 @@
     }
 
     async function fetchAndExtractVideos(pageUrl, key) {
-      const opts = { signal: AbortSignal.timeout(10000), headers: { 'Accept': 'text/html', 'Accept-Language': 'en' } };
+      const opts = { signal: AbortSignal.timeout(18000), headers: { 'Accept': 'text/html', 'Accept-Language': 'en' } };
       const html = await fetchYtHtml(pageUrl, opts);
       if (videoForKey !== key || !html) return null;
       const data = parseYtInitialData(html);
@@ -3920,7 +3951,7 @@
         if ((window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
           const params = isChannelId ? { channelId: clean } : { handle: clean };
           const channelApi = apiUrl('/api/youtube/channel?' + new URLSearchParams(params));
-          const apiRes = await fetch(channelApi, { signal: AbortSignal.timeout(10000) });
+          const apiRes = await fetch(channelApi, { signal: AbortSignal.timeout(18000) });
           if (videoForKey !== key) return [];
           if (apiRes.ok) {
             const parsed = await apiRes.json();
@@ -3967,7 +3998,7 @@
           try {
             const proxyUrl = toProxyUrl(url);
             const res = await fetch(proxyUrl, {
-              signal: AbortSignal.timeout(10000),
+              signal: AbortSignal.timeout(18000),
               headers: { 'Accept': 'text/html', 'Accept-Language': 'en' }
             });
             if (videoForKey !== key || !res.ok) continue;
@@ -4003,14 +4034,28 @@
       document.body.classList.add('has-video');
       showSearchStatus('', 'yt', 'searching...', '');
       stopAmbientCycle();
-      if (searchDebugBox) searchDebugBox.innerHTML = '';
+      if (searchDebugBox) {
+        searchDebugBox.innerHTML = '';
+        _lastDebugTier = null;
+        if (settings.searchDebug) {
+          const mode = settings.proxyMode || 'cors';
+          const head = document.createElement('div');
+          head.className = 'db-line';
+          head.innerHTML = '<strong>Debugging</strong> YouTube proxy: ' + mode;
+          searchDebugBox.appendChild(head);
+        }
+      }
 
-      const oc = await findOfficialChannel(mainArtist, key, title);
-      if (videoForKey === key) appendDebugLog({ type: 'official-channel', ...oc });
+      const tierOrder = settings.tierOrder && settings.tierOrder.length ? settings.tierOrder : [0, 1, 2, 3];
+      const tierEnabled = settings.tierEnabled && settings.tierEnabled.length >= 4 ? settings.tierEnabled : [true, true, true, false];
+      /* Only look up official channel if a channel tier (Visualizer, Live, Music Video) is enabled */
+      const hasChannelTiersEnabled = tierEnabled[0] || tierEnabled[1] || tierEnabled[2];
+      const oc = hasChannelTiersEnabled ? await findOfficialChannel(mainArtist, key, title) : { found: false, name: '', handle: '', channelId: '', channelsSeen: [] };
       const hasValidChannel = oc?.channelId || (oc?.handle && !/\s/.test((oc.handle || '')));
-      if (!hasValidChannel) {
-        showSearchStatus('Channel', '', 'none found', 'skipping to Live (fan)');
-        console.log('[Video] No official channel found — skipping to Live (fan) tier');
+      if (hasChannelTiersEnabled && !hasValidChannel) {
+        const channelDetail = tierEnabled[3] ? 'skipping to Live (fan)' : '';
+        showSearchStatus('Channel', '', 'none found', channelDetail);
+        if (tierEnabled[3]) console.log('[Video] No official channel found — skipping to Live (fan) tier');
       }
 
       function buildTierConfig(tierIdx) {
@@ -4053,17 +4098,14 @@
         ];
         return configs[tierIdx] ? { ...configs[tierIdx] } : null;
       }
-      const tierOrder = settings.tierOrder && settings.tierOrder.length ? settings.tierOrder : [0, 1, 2, 3];
-      const tierEnabled = settings.tierEnabled && settings.tierEnabled.length >= 4 ? settings.tierEnabled : [true, true, true, false];
-      /* No official channel: skip to Live (fan) only — it has no official channel requirement */
+      /* No official channel: skip Visualizer/Live/Music Video (they need channel); only try Live (fan) if enabled, else fallback */
       const orderedTiers = hasValidChannel
         ? tierOrder.filter(i => tierEnabled[i] !== false)
-        : [3];
+        : (tierEnabled[3] ? [3] : []);
       const searches = orderedTiers.map(i => buildTierConfig(i)).filter(Boolean);
 
       async function tryTier(tierIdx) {
         if (tierIdx >= searches.length) {
-          showSearchStatus('All tiers', '', 'falling back', getEffectiveFallbackPlaylistId() ? 'playlist' : 'ambient');
           console.log('[Video] No song video found — falling back to ' + (getEffectiveFallbackPlaylistId() ? 'playlist' : 'ambient'));
           if (videoForKey !== key) return;
           currentSongVideo = null;
@@ -4094,6 +4136,7 @@
               if (s.filterLive) L = L.filter(hasLiveInTitle);
               if (s.filterByChannel && s.tier === 0) L = L.filter(v => titleContains(v, title));
               if (s.filterByTitle && s.tier === 3) L = L.filter(v => titleContains(v, title));
+              if (s.tier === 3) L = L.filter(v => titleContains(v, _searchArtist));
               if (s.tier === 2) L = L.filter(v => hasVideoInTitle(v) && titleContains(v, title));
               if ((s.tier === 1 || s.tier === 3) && minDurationSec) L = L.filter(videoLongerThanSong);
               return L;
@@ -4122,9 +4165,10 @@
           if (s.filterLive) list = list.filter(hasLiveInTitle);
           if (s.filterByChannel && s.tier === 0) list = list.filter(v => titleContains(v, title));
           if (s.filterByTitle && s.tier === 3) list = list.filter(v => titleContains(v, title));
+          if (s.tier === 3) list = list.filter(v => titleContains(v, _searchArtist));
           if (s.tier === 2) list = list.filter(v => hasVideoInTitle(v) && titleContains(v, title));
           if ((s.tier === 1 || s.tier === 3) && minDurationSec) list = list.filter(videoLongerThanSong);
-          if ((s.filterByChannel || s.allowUnofficial) && searchDebugBox && settings.searchDebug) {
+          if ((s.filterByChannel || s.allowUnofficial) && s.tier !== 3 && (!list || list.length === 0) && searchDebugBox && settings.searchDebug) {
             appendDebugLog({ type: 'channel-videos', videos: listRaw || [], matched: list });
           }
           if (s.queries) console.log('[Video][YouTube] Tier ' + s.tier + ' → "' + qDisplay + '" → ' + (list?.length || 0) + ' merged');
@@ -4143,9 +4187,10 @@
             if (s.filterLive) list = list.filter(hasLiveInTitle);
             if (s.filterByChannel && s.tier === 0) list = list.filter(v => titleContains(v, title));
             if (s.filterByTitle && s.tier === 3) list = list.filter(v => titleContains(v, title));
+            if (s.tier === 3) list = list.filter(v => titleContains(v, _searchArtist));
             if (s.tier === 2) list = list.filter(v => hasVideoInTitle(v) && titleContains(v, title));
             if ((s.tier === 1 || s.tier === 3) && minDurationSec) list = list.filter(videoLongerThanSong);
-            if (list?.length && searchDebugBox && settings.searchDebug) {
+            if ((!list || list.length === 0) && s.tier !== 3 && searchDebugBox && settings.searchDebug) {
               appendDebugLog({ type: 'channel-videos', videos: listRaw || [], matched: list });
             }
           }
@@ -4164,7 +4209,7 @@
               if (s.tier === 2) fromChannel = fromChannel.filter(v => /\bvideo\b/.test((v.title || '').toLowerCase()) && titleContains(v, title));
               if ((s.tier === 1 || s.tier === 3) && minDurationSec) fromChannel = fromChannel.filter(videoLongerThanSong);
               list = fromChannel;
-              if (list?.length && searchDebugBox && settings.searchDebug) {
+              if ((!list || list.length === 0) && searchDebugBox && settings.searchDebug) {
                 appendDebugLog({ type: 'channel-videos', videos: channelVids, matched: list, source: 'channel-page' });
               }
             }
@@ -4179,7 +4224,7 @@
             if (s.filterLive) list = list.filter(hasLiveInTitle);
             if (s.filterByChannel && s.tier === 0) list = list.filter(v => titleContains(v, title));
             if ((s.tier === 1 || s.tier === 3) && minDurationSec) list = list.filter(videoLongerThanSong);
-            if (list?.length && searchDebugBox && settings.searchDebug) {
+            if ((!list || list.length === 0) && searchDebugBox && settings.searchDebug) {
               appendDebugLog({ type: 'retry-queries', queries: s.retryQueries, matched: list });
             }
           }
@@ -4187,7 +4232,8 @@
             const pick = bestFromList(list, s.maxRank);
             const toTry = pick || list[0];
             if (toTry) {
-              showSearchStatus(tierLabel, 'yt', 'found', toTry.title);
+              const foundDetail = (s.tier === 3 ? '(' + list.length + ' videos)' : toTry.title);
+              showSearchStatus(tierLabel, 'yt', 'found', foundDetail);
               console.log('[Video][YouTube] Tier ' + s.tier + ' ✓ picked:', toTry.title, '|', rankLabel(toTry));
               if (videoForKey !== key) return;
               const candidates = pick ? rankedList(list, s.maxRank, tierLabel) : [list[0]];
@@ -4195,13 +4241,14 @@
                   if (videoForKey !== key) return;
                   currentSongVideo = null;
                   const rq = s.retryQueries;
-                  if (rq?.length) {
+                  if (rq?.length && s.tier !== 3) {
                     showSearchStatus(tierLabel, 'yt', 'retrying different query...', rq[0]);
                     const retryListRaw = dedupeById((await Promise.all(rq.map(q => ytSearch(q, key)))).map(r => r || []).flat());
                     const retryChannelFilter = s.allowUnofficial ? (v) => true : (s.filterByChannel && oc ? (v) => isFromOfficialChannel(v, oc) : (v) => isOfficialChannel(v));
                     let retryList = (retryListRaw || []).filter(retryChannelFilter);
                     if (s.filterLive) retryList = retryList.filter(v => /\blive\b|\bconcert\b|\bperformanc|\bfestival\b|\bunplugged\b/.test((v.title || '').toLowerCase()));
                     if (s.filterByTitle && s.tier === 3) retryList = retryList.filter(v => titleContains(v, title));
+                    if (s.tier === 3) retryList = retryList.filter(v => titleContains(v, _searchArtist));
                     if (s.tier === 2) retryList = retryList.filter(v => /\bvideo\b/.test((v.title || '').toLowerCase()) && titleContains(v, title));
                     if ((s.tier === 1 || s.tier === 3) && minDurationSec) retryList = retryList.filter(videoLongerThanSong);
                     const triedIds = new Set(candidates.map(v => v.id));
