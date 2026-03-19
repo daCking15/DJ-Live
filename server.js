@@ -354,53 +354,6 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  /* Proxy for YouTube (avoids CORS on deployed sites — corsproxy.io often returns 403) */
-  if (parsed.pathname === '/api/proxy') {
-    let target = parsed.searchParams.get('url');
-    if (!target || !/^https:\/\/(www\.)?youtube\.com\//.test(target)) {
-      res.writeHead(400, { 'Content-Type': 'text/plain' });
-      return res.end('Invalid or disallowed url');
-    }
-    console.log('[DJ Live] Query: /api/proxy', target.slice(0, 120) + (target.length > 120 ? '...' : ''));
-    const opts = {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html',
-        'Accept-Language': 'en'
-      }
-    };
-    function doProxy(url, depth) {
-      if (depth > 5) {
-        res.writeHead(502, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
-        return res.end('Too many redirects');
-      }
-      const lib = url.startsWith('https') ? require('https') : require('http');
-      lib.get(url, opts, (proxyRes) => {
-        const code = proxyRes.statusCode || 0;
-        if (code >= 301 && code <= 308 && proxyRes.headers.location) {
-          const loc = proxyRes.headers.location;
-          const next = loc.startsWith('http') ? loc : (new URL(loc, url)).href;
-          if (/^https:\/\/(www\.)?youtube\.com\//.test(next)) return doProxy(next, depth + 1);
-        }
-        const chunks = [];
-        proxyRes.on('data', c => chunks.push(c));
-        proxyRes.on('end', () => {
-          const body = Buffer.concat(chunks);
-          res.writeHead(proxyRes.statusCode || 200, {
-            'Content-Type': proxyRes.headers['content-type'] || 'text/html',
-            'Access-Control-Allow-Origin': '*'
-          });
-          res.end(body);
-        });
-      }).on('error', (err) => {
-        res.writeHead(502, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
-        res.end('Proxy error: ' + (err.message || 'fetch failed'));
-      });
-    }
-    doProxy(target, 0);
-    return;
-  }
-
   if (parsed.pathname === '/api/reddit') {
     const q = parsed.searchParams.get('q');
     if (!q) { res.writeHead(400); res.end('Missing q param'); return; }

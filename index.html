@@ -127,19 +127,78 @@
     .status-subtext { margin-top: 0.3rem; min-height: 1.1rem; font-size: 0.84rem; color: var(--text-muted); }
 
     /* ── Spotify card (when music source) ── */
-    .spotify-card { display: none; }
-    body.spotify-mode .spotify-card { display: block; }
+    .spotify-card { display: none; background: transparent; border: none; border-radius: 16px; padding: 2rem; text-align: center; margin-bottom: 1.25rem; }
+    body.spotify-mode .spotify-card { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 260px; }
     body.spotify-mode .mic-card { display: none !important; }
-    .spotify-status-msg { font-size: 0.9rem; color: var(--text-muted); text-align: center; margin-top: 0.5rem; }
-    .spotify-status-msg.active { color: var(--accent); font-weight: 500; }
-
-    .landing-demo-wrap { text-align: center; margin-top: 1.25rem; }
-    .landing-demo-btn {
-      font-size: 0.9rem; color: var(--accent); background: transparent; border: 1px solid var(--accent-dim);
-      border-radius: 8px; padding: 0.5rem 1rem; cursor: pointer; font-family: inherit;
-      transition: background 0.2s, color 0.2s;
+    .spotify-btn {
+      width: 140px; height: 140px; border-radius: 50%; border: none; background: transparent;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1.75rem; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.25);
     }
-    .landing-demo-btn:hover { background: rgba(0,255,157,0.12); color: var(--accent); }
+    .spotify-btn:hover:not(:disabled) {
+      transform: scale(1.12) !important;
+      box-shadow: 0 0 36px rgba(29,185,84,0.4), 0 0 72px rgba(29,185,84,0.2) !important;
+    }
+    .spotify-btn.syncing {
+      background: rgba(168,85,247,0.2) !important;
+      animation: pulse-ring-spotify-purple 1.4s ease-in-out infinite;
+      box-shadow: 0 0 20px rgba(168,85,247,0.4);
+    }
+    .spotify-btn.syncing svg { fill: #c084fc; }
+    .spotify-btn svg { width: 56px; height: 56px; fill: #1DB954; }
+    .spotify-btn:hover svg { fill: #1ed760; }
+    .spotify-btn:not(.syncing):hover svg { fill: #1ed760; }
+    @keyframes pulse-ring-spotify {
+      0% { box-shadow: 0 0 0 0 rgba(29,185,84,0.4); }
+      70% { box-shadow: 0 0 0 18px rgba(29,185,84,0); }
+      100% { box-shadow: 0 0 0 0 rgba(29,185,84,0); }
+    }
+    @keyframes pulse-ring-spotify-purple {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(168,85,247,0.5), 0 0 24px rgba(168,85,247,0.3); }
+      50% { box-shadow: 0 0 0 14px rgba(168,85,247,0), 0 0 32px rgba(168,85,247,0.6); }
+    }
+    @keyframes subtitle-neon-pulse {
+      0%, 100% { filter: drop-shadow(0 0 8px #e879f9) drop-shadow(0 0 24px #a855f7); }
+      50% { filter: drop-shadow(0 0 12px #e879f9) drop-shadow(0 0 36px #a855f7); }
+    }
+    .spotify-status-text { font-size: 1rem; color: var(--text-muted); margin-bottom: 0; }
+    .spotify-status-text.syncing { color: #1DB954; font-weight: 500; }
+    .spotify-text-wrap { margin-bottom: 0.5rem; }
+    .spotify-sign-in-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
+      margin: 0 auto; padding: 0.9rem 1.75rem;
+      font-size: 1rem; font-weight: 600; font-family: inherit;
+      color: #fff; background: linear-gradient(135deg, #1DB954 0%, #1ed760 100%);
+      border: none; border-radius: 999px;
+      cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 4px 20px rgba(29,185,84,0.35), 0 2px 8px rgba(0,0,0,0.2);
+      letter-spacing: 0.02em;
+    }
+    .spotify-sign-in-btn:hover:not(:disabled) {
+      background: linear-gradient(135deg, #1ed760 0%, #1DB954 100%);
+      transform: scale(1.04);
+      box-shadow: 0 6px 28px rgba(29,185,84,0.45), 0 4px 12px rgba(0,0,0,0.25);
+    }
+    .spotify-sign-in-btn:active:not(:disabled) { transform: scale(0.98); }
+    .spotify-sign-in-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .spotify-sign-in-btn.loading {
+      background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%) !important;
+      cursor: wait; pointer-events: none;
+      animation: spotify-sign-in-pulse 1.2s ease-in-out infinite;
+    }
+    .spotify-sign-in-btn.loading:hover { transform: none; }
+    @keyframes spotify-sign-in-pulse {
+      0%, 100% { box-shadow: 0 0 16px rgba(168,85,247,0.5), 0 0 32px rgba(168,85,247,0.3), inset 0 0 20px rgba(168,85,247,0.2); opacity: 1; }
+      50% { box-shadow: 0 0 28px rgba(168,85,247,0.8), 0 0 56px rgba(168,85,247,0.5), inset 0 0 30px rgba(168,85,247,0.3); opacity: 0.95; }
+    }
+    #spotifySignIn.loading {
+      background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%) !important;
+      border-color: #a855f7 !important; color: #fff !important;
+      cursor: wait; pointer-events: none;
+      animation: spotify-sign-in-pulse 1.2s ease-in-out infinite;
+    }
+    .spotify-sign-in-btn svg { width: 24px; height: 24px; flex-shrink: 0; fill: #fff; }
 
     /* ── Now Playing (base / hidden) ── */
     .now-playing {
@@ -282,45 +341,73 @@
       color: var(--text-muted); margin-bottom: 0.75rem; font-weight: 600;
     }
     .last-song-card {
+      position: relative;
       background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: 16px; padding: 1.5rem;
-      display: flex; flex-direction: column; align-items: center; text-align: center;
-      gap: 1rem;
+      border-radius: 16px; padding: 1.25rem;
+      display: flex; flex-direction: column; align-items: stretch; text-align: center;
+      gap: 1.25rem; min-height: 220px; overflow: hidden;
     }
     .last-song-main {
-      display: grid; grid-template-columns: 1fr 1fr 1fr;
-      align-items: center; gap: 1.25rem 2rem; width: 100%;
+      display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: minmax(0, 1fr);
+      align-items: center; align-content: center; gap: 1rem 1.25rem; width: 100%;
+      flex: 1; min-height: 0; overflow: hidden;
     }
     .last-song-art-col {
-      display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
-      min-width: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem;
+      min-width: 0; min-height: 0; justify-self: stretch; width: 100%;
     }
-    .last-song-card .album-art {
-      width: 120px; height: 120px; border-radius: 12px;
+    .last-song-art-wrap {
+      position: relative; width: 100%; max-width: 100%; flex: 0 0 auto;
+      overflow: hidden; aspect-ratio: 1; max-height: min(180px, 100%);
+    }
+    .last-song-art-wrap .album-art-link { width: 100%; }
+    .last-song-card .last-song-art-wrap .last-song-spotify-badge {
+      position: absolute; top: 8px; right: 8px; z-index: 10;
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.7); border-radius: 6px;
+      text-decoration: none; color: #1DB954;
+    }
+    .last-song-card .last-song-art-wrap .last-song-spotify-badge:hover { background: rgba(0,0,0,0.85); }
+    .last-song-card .last-song-art-wrap .last-song-spotify-badge svg { width: 18px; height: 18px; color: #1DB954; }
+    .last-song-card .album-art-link {
+      display: block; position: relative; width: 100%; max-width: 100%;
+      height: 0 !important; padding-bottom: 100% !important; border-radius: 12px;
+      overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+      flex: 0 0 auto; flex-shrink: 0;
+    }
+    .last-song-card .album-art-link .album-art {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: cover; border-radius: 12px; display: block;
+    }
+    .last-song-card .album-art:not(.album-art-link .album-art) {
+      display: block; width: 100%; max-width: 100%; aspect-ratio: 1;
+      object-fit: cover; border-radius: 12px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.35);
-      flex-shrink: 0;
     }
     .last-song-title-col {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      min-width: 0;
+      min-width: 0; justify-self: stretch; padding: 0 0.5rem;
     }
     .last-song-card .result-info {
       text-align: center; min-width: 0;
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem;
     }
-    .last-song-card .result-title { font-size: 1.2rem; margin-bottom: 0.2rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+    .last-song-card .result-title { font-size: 1.2rem; margin-bottom: 0.2rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .last-song-card .result-artist { font-size: 0.95rem; color: var(--text-muted); }
     .last-song-card .result-meta { margin-top: 0.25rem; font-size: 0.8rem; color: var(--text-muted); }
     .last-song-video-col {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       min-width: 0; gap: 0.75rem;
-      padding-left: 0.5rem;
+      justify-self: stretch;
     }
     .last-song-title-col { padding-right: 0.5rem; }
     .last-song-tidbit {
       font-size: 0.85rem; color: var(--text-muted);
       font-style: italic; line-height: 1.35; text-align: center;
-      padding-top: 0.5rem; border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      padding: 1.75rem 0 0.5rem 0; border-top: 1px solid var(--border);
+      width: 100%; flex-shrink: 0; min-height: 2.5rem;
     }
     .last-song-video-thumb {
       width: 100%; aspect-ratio: 16 / 9; border-radius: 8px;
@@ -383,9 +470,11 @@
       background: rgba(0,0,0,0.6); border-radius: 4px;
     }
     .album-art-spotify-badge svg { width: 10px; height: 10px; color: #1DB954; }
-    .last-song-card .album-art-link { width: 120px; height: 120px; }
-    .last-song-card .album-art-spotify-badge { width: 24px; height: 24px; top: 4px; right: 4px; }
-    .last-song-card .album-art-spotify-badge svg { width: 16px; height: 16px; }
+    .last-song-card .album-art-link .album-art-spotify-badge {
+      display: flex !important; top: 8px; right: 8px; width: 28px; height: 28px; z-index: 2;
+      background: rgba(0,0,0,0.65); border-radius: 6px;
+    }
+    .last-song-card .album-art-link .album-art-spotify-badge svg { width: 16px; height: 16px; }
     .result-info {
       min-width: 0; padding-left: 1rem;
       display: flex; flex-direction: column; gap: 0.25rem;
@@ -778,12 +867,26 @@
       display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;
     }
     .stg-check input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
-    .stg-tier-list { display: flex; flex-direction: column; gap: 0.35rem; }
-    .stg-tier-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.35rem 0.5rem; background: var(--bg-muted, rgba(255,255,255,0.06)); border-radius: 6px; }
-    .stg-tier-row label { flex: 1; margin: 0; }
-    .stg-tier-move { display: flex; gap: 0.2rem; }
-    .stg-tier-up, .stg-tier-down { width: 28px; height: 24px; padding: 0; font-size: 0.85rem; line-height: 1; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); cursor: pointer; }
-    .stg-tier-up:hover, .stg-tier-down:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .stg-tier-list { display: flex; flex-direction: column; gap: 0; }
+    .stg-tier-dropzone {
+      min-height: 6px; margin: 2px 0; border-radius: 4px;
+      transition: min-height 0.15s ease, background 0.15s ease;
+    }
+    .stg-tier-dropzone.drag-over {
+      min-height: 32px; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,255,157,0.15); border: 2px dashed var(--accent); margin: 0;
+    }
+    .stg-tier-dropzone.drag-over::after {
+      content: ''; display: block; width: 100%; height: 3px; background: var(--accent);
+      border-radius: 2px; box-shadow: 0 0 8px rgba(0,255,157,0.4);
+    }
+    .stg-tier-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; background: var(--bg-muted, rgba(255,255,255,0.06)); border-radius: 6px; margin: 2px 0; }
+    .stg-tier-row.dragging { opacity: 0.5; }
+    .stg-tier-handle { display: flex; flex-direction: column; gap: 2px; padding: 0.25rem; cursor: grab; color: var(--text-muted); flex-shrink: 0; }
+    .stg-tier-handle:active { cursor: grabbing; }
+    .stg-tier-handle:hover { color: var(--accent); }
+    .stg-tier-handle span { display: block; width: 14px; height: 2px; background: currentColor; border-radius: 1px; }
+    .stg-tier-row label { flex: 1; margin: 0; min-width: 0; }
 
     @media (min-width: 700px) {
       .video-badge { padding: 0.5rem 1.4rem; }
@@ -1232,6 +1335,7 @@
       body:not(.has-song) .landing-left .subtitle {
         font-size: 1.15rem;
         margin-top: 0.5rem;
+        color: #c084fc;
       }
       body:not(.has-song) #errorArea {
         flex-shrink: 0;
@@ -1241,6 +1345,12 @@
         margin: auto 0;
         padding: 2.5rem 3rem;
         border-radius: 24px;
+      }
+      body:not(.has-song) .landing-left .spotify-card {
+        flex: 0 1 auto;
+        margin: auto 0;
+        padding: 2.5rem 3rem;
+        min-height: 280px;
       }
       body:not(.has-song) .mic-btn {
         width: 180px;
@@ -1265,15 +1375,23 @@
       }
       body:not(.has-song) .last-song-card {
         padding: 2.5rem 3rem;
+        gap: 2.5rem;
         border-radius: 24px;
+        max-width: 900px;
+        margin: 0 auto;
       }
-      body:not(.has-song) .last-song-card .album-art {
-        width: 200px; height: 200px; border-radius: 18px;
+      body:not(.has-song) .last-song-card .album-art,
+      body:not(.has-song) .last-song-card .album-art-link {
+        border-radius: 18px;
         box-shadow: 0 16px 56px rgba(0,0,0,0.5);
+      }
+      body:not(.has-song) .last-song-card .last-song-main {
+        grid-template-columns: 1fr 1fr 1fr; grid-template-rows: minmax(0, 1fr);
+        gap: 2rem 3rem;
       }
       body:not(.has-song) .last-song-card .result-title { font-size: 1.75rem; }
       body:not(.has-song) .last-song-card .result-artist { font-size: 1.15rem; }
-      body:not(.has-song) .last-song-tidbit { font-size: 1rem; }
+      body:not(.has-song) .last-song-tidbit { font-size: 1rem; padding: 3rem 0 0.5rem 0; }
       body:not(.has-song) .landing-right {
         display: flex;
         flex-direction: column;
@@ -1321,79 +1439,6 @@
 
   <div class="settings-overlay" id="settingsOverlay">
     <div class="settings-modal">
-      <h2>Background</h2>
-      <div class="stg-group">
-        <span class="stg-label">Mode</span>
-        <div class="stg-row">
-          <button class="stg-radio" data-bg="youtube" type="button">YouTube</button>
-          <button class="stg-radio" data-bg="visualizer" type="button">Visualizer</button>
-        </div>
-      </div>
-      <div class="stg-group">
-        <span class="stg-label">Fallback playlist</span>
-        <div class="stg-row" style="margin-bottom:0.5rem">
-          <button class="stg-radio" data-fallback-source="djlive" type="button">DJ Live YouTube Playlist</button>
-          <button class="stg-radio" data-fallback-source="custom" type="button">Custom</button>
-        </div>
-        <div id="fallbackPlaylistCustomWrap" style="display:none;margin-top:0.35rem">
-          <input class="stg-input" id="fallbackPlaylistUrl" type="text" placeholder="https://www.youtube.com/playlist?list=PLxxx" style="width:100%">
-        </div>
-        <p class="stg-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem">When no official-channel videos work, play this playlist instead of ambient</p>
-        <label class="stg-check" style="margin-top:0.5rem">
-          <input type="checkbox" id="fallbackPlaylistShuffleCb">
-          <span>Shuffle fallback playlist</span>
-        </label>
-      </div>
-      <div class="stg-group">
-        <span class="stg-label">Video search tiers</span>
-        <p class="stg-hint" style="font-size:0.75rem;color:var(--text-muted);margin:0.25rem 0 0.5rem">Choose tiers to search and their order. Uncheck to disable. Use ↑↓ to reorder.</p>
-        <div id="stgTierOrderList" class="stg-tier-list"></div>
-        <label class="stg-check" style="margin-top:0.5rem">
-          <input type="checkbox" id="deepSearchCb">
-          <span>Deep search (load all channel videos when no hits)</span>
-        </label>
-        <label class="stg-check" style="margin-top:0.5rem">
-          <input type="checkbox" id="randomLiveStartCb">
-          <span>Random start in long live sets (skip to random point 0 to video length − song length)</span>
-        </label>
-        <label class="stg-check" style="margin-top:0.5rem">
-          <input type="checkbox" id="only4kCb">
-          <span>Only 4K videos (filter by title: 4K, UHD, 2160p)</span>
-        </label>
-      </div>
-      <hr class="stg-divider">
-      <h2>Lyrics</h2>
-      <div class="stg-group">
-        <span class="stg-label">Sync offset (ms)</span>
-        <div class="stg-row" style="align-items:center;gap:0.75rem">
-          <button class="stg-radio" id="lyricsOffsetMinus" type="button" style="min-width:2.5rem">−500</button>
-          <input class="stg-input" id="lyricsOffsetMs" type="number" min="-3000" max="3000" step="100" placeholder="0" style="width:6rem">
-          <button class="stg-radio" id="lyricsOffsetPlus" type="button" style="min-width:2.5rem">+500</button>
-        </div>
-      </div>
-      <hr class="stg-divider">
-      <h2>Debug</h2>
-      <div class="stg-group">
-        <span class="stg-label">YouTube proxy</span>
-        <div class="stg-row" style="flex-wrap:wrap;gap:0.5rem">
-          <button class="stg-radio" data-proxy-mode="cors" type="button">CORS proxy</button>
-          <button class="stg-radio" data-proxy-mode="node" type="button">Node proxy</button>
-        </div>
-        <p class="stg-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem">Use one or the other. Node requires server.js running (e.g. port 3000).</p>
-      </div>
-      <div class="stg-group">
-        <label class="stg-check">
-          <input type="checkbox" id="searchDebugCb">
-          <span>Show search debug log</span>
-        </label>
-      </div>
-      <div class="stg-group">
-        <label class="stg-check">
-          <input type="checkbox" id="showSocialPostsCb">
-          <span>Show social posts</span>
-        </label>
-      </div>
-      <hr class="stg-divider">
       <h2>Music Source</h2>
       <div class="stg-group">
         <span class="stg-label">Mode</span>
@@ -1401,6 +1446,10 @@
           <button class="stg-radio active" data-music-source="listen" type="button">Listen (microphone)</button>
           <button class="stg-radio" data-music-source="spotify" type="button">Spotify</button>
         </div>
+        <label class="stg-check" style="margin-top:0.5rem" id="autoStartListeningWrap">
+          <input type="checkbox" id="autoStartListeningCb">
+          <span>Start detecting automatically when page loads</span>
+        </label>
       </div>
 
       <div class="stg-fields" id="fieldsSpotify">
@@ -1418,8 +1467,58 @@
             <button class="stg-radio" id="spotifySignIn" type="button">Sign In</button>
             <button class="stg-radio" id="spotifySignOut" type="button">Sign Out</button>
           </div>
-          <p id="spotifyRedirectUriHint" class="stg-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;word-break:break-all">Add this to Spotify Dashboard → Redirect URIs: <strong id="spotifyRedirectUriValue"></strong></p>
         </div>
+      </div>
+
+      <hr class="stg-divider">
+      <h2>Background</h2>
+      <div class="stg-group">
+        <span class="stg-label">Mode</span>
+        <div class="stg-row">
+          <button class="stg-radio" data-bg="youtube" type="button">YouTube</button>
+          <button class="stg-radio" data-bg="visualizer" type="button">Visualizer</button>
+        </div>
+      </div>
+      <div id="fallbackPlaylistGroup" class="stg-group">
+        <span class="stg-label">Fallback playlist</span>
+        <div class="stg-row" style="margin-bottom:0.5rem">
+          <button class="stg-radio" data-fallback-source="djlive" type="button">DJ Live YouTube Playlist</button>
+          <button class="stg-radio" data-fallback-source="custom" type="button">Custom</button>
+        </div>
+        <div id="fallbackPlaylistCustomWrap" style="display:none;margin-top:0.35rem">
+          <input class="stg-input" id="fallbackPlaylistUrl" type="text" placeholder="https://www.youtube.com/playlist?list=PLxxx" style="width:100%">
+        </div>
+        <label class="stg-check" style="margin-top:0.5rem">
+          <input type="checkbox" id="fallbackPlaylistShuffleCb">
+          <span>Shuffle fallback playlist</span>
+        </label>
+      </div>
+      <div id="videoTiersGroup" class="stg-group">
+        <span class="stg-label">Video search tiers</span>
+        <p class="stg-hint" style="font-size:0.75rem;color:var(--text-muted);margin:0.25rem 0 0.5rem">Choose tiers to search and their order. Uncheck to disable. Drag to reorder.</p>
+        <div id="stgTierOrderList" class="stg-tier-list"></div>
+        <label class="stg-check" style="margin-top:0.5rem">
+          <input type="checkbox" id="randomLiveStartCb">
+          <span>Random start in long live sets</span>
+        </label>
+      </div>
+      <hr class="stg-divider">
+      <h2>Lyrics</h2>
+      <div class="stg-group">
+        <span class="stg-label">Sync offset (ms)</span>
+        <div class="stg-row" style="align-items:center;gap:0.75rem">
+          <button class="stg-radio" id="lyricsOffsetMinus" type="button" style="min-width:2.5rem">−500</button>
+          <input class="stg-input" id="lyricsOffsetMs" type="number" min="-3000" max="3000" step="100" placeholder="0" style="width:6rem">
+          <button class="stg-radio" id="lyricsOffsetPlus" type="button" style="min-width:2.5rem">+500</button>
+        </div>
+      </div>
+      <hr class="stg-divider">
+      <h2>Debug</h2>
+      <div class="stg-group">
+        <label class="stg-check">
+          <input type="checkbox" id="searchDebugCb">
+          <span>Show search debug log</span>
+        </label>
       </div>
 
       <hr class="stg-divider">
@@ -1451,9 +1550,19 @@
         </div>
       </div>
       <div class="spotify-card" id="spotifyCard">
-        <p class="spotify-status-msg" id="spotifyStatusMsg">Sign in via Settings. Now playing syncs from any device (phone, desktop, web).</p>
+        <button class="spotify-btn" id="spotifyBtn" type="button" title="Start / Stop syncing" style="display:none">
+          <svg class="spotify-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.24 1.02zm1.44-3.3c-.301.42-.841.561-1.262.258-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+          </svg>
+        </button>
+        <div class="spotify-text-wrap">
+          <p class="spotify-status-text" id="spotifyStatusText">Click to start syncing</p>
+        </div>
+        <button class="spotify-sign-in-btn" id="spotifyCardSignIn" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.24 1.02zm1.44-3.3c-.301.42-.841.561-1.262.258-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+          Sign in with Spotify
+        </button>
       </div>
-      <p class="landing-demo-wrap"><button type="button" class="landing-demo-btn" id="demoBtn">Try demo song</button></p>
     </div>
 
     <div class="landing-right">
@@ -1488,6 +1597,7 @@
     </div>
 
     <div class="results" id="resultsDrawer">
+      <div class="last-song-section" id="lastSongSectionDrawer"></div>
       <div class="history-label">Song History</div>
       <div id="resultsListDrawer"></div>
     </div>
@@ -1549,17 +1659,14 @@
       auddToken: '15b8d3ac5946ec625264fec02d9cdb15',
       lyricsOffsetMs: 0,
       searchDebug: false,
-      deepSearch: false,
-      showSocialPosts: false,
       ambientDefault: 'youtube',
       fallbackPlaylistSource: 'djlive',
       fallbackPlaylistUrl: '',
       fallbackPlaylistShuffle: true,
       randomLiveStart: true,
-      only4k: false,
+      autoStartListening: false,
       tierOrder: [2, 0, 1, 3],
-      tierEnabled: [true, true, true, false],
-      proxyMode: 'cors'
+      tierEnabled: [true, true, true, true],
     };
 
     const SETTINGS_KEY = 'djlive_settings2';
@@ -1575,16 +1682,17 @@
         if (merged.ambientDefault !== 'youtube') merged.ambientDefault = 'youtube';
         if (typeof merged.fallbackPlaylistShuffle !== 'boolean') merged.fallbackPlaylistShuffle = !!DEFAULTS.fallbackPlaylistShuffle;
         if (typeof merged.randomLiveStart !== 'boolean') merged.randomLiveStart = !!DEFAULTS.randomLiveStart;
-        if (typeof merged.only4k !== 'boolean') merged.only4k = !!DEFAULTS.only4k;
+        if (typeof merged.autoStartListening !== 'boolean') merged.autoStartListening = !!DEFAULTS.autoStartListening;
+        merged.deepSearch = false;
+        merged.showSocialPosts = false;
         if (!['djlive', 'custom'].includes(merged.fallbackPlaylistSource)) merged.fallbackPlaylistSource = (merged.fallbackPlaylistUrl && (merged.fallbackPlaylistUrl.match(/[?&]list=([a-zA-Z0-9_-]+)/)?.[1])) ? 'custom' : 'djlive';
         if (!Array.isArray(merged.tierOrder) || merged.tierOrder.length === 0) merged.tierOrder = [...DEFAULTS.tierOrder];
-        if (!Array.isArray(merged.tierEnabled) || merged.tierEnabled.length < 4) merged.tierEnabled = [...(DEFAULTS.tierEnabled || [true, true, true, false])];
+        if (!Array.isArray(merged.tierEnabled) || merged.tierEnabled.length < 4) merged.tierEnabled = [...(DEFAULTS.tierEnabled || [true, true, true, true])];
         merged.tierOrder = merged.tierOrder.filter(i => [0, 1, 2, 3].includes(i));
         [2, 3].forEach(t => { if (!merged.tierOrder.includes(t)) merged.tierOrder.push(t); });
         if (merged.tierOrder.length === 0) merged.tierOrder = [0, 1, 2, 3];
         merged.tierEnabled = merged.tierEnabled.slice(0, 4);
         while (merged.tierEnabled.length < 4) merged.tierEnabled.push(true);
-        if (!['cors', 'node'].includes(merged.proxyMode)) merged.proxyMode = 'cors';
         return merged;
       } catch (_) { return { ...DEFAULTS }; }
     }
@@ -1637,8 +1745,7 @@
     let stgMusicSource = settings.musicSource;
     let stgFallbackPlaylistSource = settings.fallbackPlaylistSource || 'djlive';
     let stgTierOrder = [...(settings.tierOrder || [0, 1, 2, 3])];
-    let stgTierEnabled = [...(settings.tierEnabled || [true, true, true, false])];
-    let stgProxyMode = settings.proxyMode || 'auto';
+    let stgTierEnabled = [...(settings.tierEnabled || [true, true, true, true])];
     while (stgTierEnabled.length < 4) stgTierEnabled.push(true);
 
     function renderUsageBar(containerId, provider) {
@@ -1661,32 +1768,51 @@
       if (!container) return;
       const order = stgTierOrder;
       const enabled = stgTierEnabled;
-      container.innerHTML = order.map((tierIdx, pos) => {
+      const parts = [];
+      order.forEach((tierIdx, pos) => {
+        parts.push('<div class="stg-tier-dropzone" data-insert-pos="' + pos + '"></div>');
         const label = TIER_LABELS_CFG[tierIdx] || 'Tier ' + tierIdx;
-        const canUp = pos > 0;
-        const canDown = pos < order.length - 1;
-        return '<div class="stg-tier-row" data-tier="' + tierIdx + '">' +
+        parts.push('<div class="stg-tier-row" data-tier="' + tierIdx + '" data-pos="' + pos + '">' +
+          '<div class="stg-tier-handle" title="Drag to reorder" draggable="true"><span></span><span></span><span></span></div>' +
           '<label class="stg-check"><input type="checkbox" class="stg-tier-cb"' + (enabled[tierIdx] !== false ? ' checked' : '') + '> <span>' + label + '</span></label>' +
-          '<div class="stg-tier-move">' +
-          '<button type="button" class="stg-tier-up" title="Move up"' + (canUp ? '' : ' disabled') + '>↑</button>' +
-          '<button type="button" class="stg-tier-down" title="Move down"' + (canDown ? '' : ' disabled') + '>↓</button>' +
-          '</div></div>';
-      }).join('');
-      container.querySelectorAll('.stg-tier-up').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const rows = Array.from(container.querySelectorAll('.stg-tier-row'));
-          const idx = rows.findIndex(r => r.contains(btn));
-          if (idx <= 0) return;
-          [stgTierOrder[idx - 1], stgTierOrder[idx]] = [stgTierOrder[idx], stgTierOrder[idx - 1]];
-          renderTierOrderList();
+          '</div>');
+      });
+      parts.push('<div class="stg-tier-dropzone" data-insert-pos="' + order.length + '"></div>');
+      container.innerHTML = parts.join('');
+      container.querySelectorAll('.stg-tier-handle').forEach(handle => {
+        const row = handle.closest('.stg-tier-row');
+        handle.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('text/plain', row.dataset.pos);
+          e.dataTransfer.effectAllowed = 'move';
+          row.classList.add('dragging');
+        });
+        handle.addEventListener('dragend', () => {
+          row.classList.remove('dragging');
+          container.querySelectorAll('.stg-tier-dropzone').forEach(dz => dz.classList.remove('drag-over'));
         });
       });
-      container.querySelectorAll('.stg-tier-down').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const rows = Array.from(container.querySelectorAll('.stg-tier-row'));
-          const idx = rows.findIndex(r => r.contains(btn));
-          if (idx < 0 || idx >= stgTierOrder.length - 1) return;
-          [stgTierOrder[idx], stgTierOrder[idx + 1]] = [stgTierOrder[idx + 1], stgTierOrder[idx]];
+      container.querySelectorAll('.stg-tier-dropzone').forEach(dz => {
+        dz.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          const dragging = container.querySelector('.stg-tier-row.dragging');
+          if (dragging) {
+            container.querySelectorAll('.stg-tier-dropzone').forEach(d => d.classList.remove('drag-over'));
+            dz.classList.add('drag-over');
+          }
+        });
+        dz.addEventListener('dragleave', (e) => {
+          if (!dz.contains(e.relatedTarget)) dz.classList.remove('drag-over');
+        });
+        dz.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dz.classList.remove('drag-over');
+          const fromPos = parseInt(e.dataTransfer.getData('text/plain'), 10);
+          let toPos = parseInt(dz.dataset.insertPos, 10);
+          if (fromPos === toPos || fromPos + 1 === toPos) return;
+          const [removed] = stgTierOrder.splice(fromPos, 1);
+          if (fromPos < toPos) toPos--;
+          stgTierOrder.splice(toPos, 0, removed);
           renderTierOrderList();
         });
       });
@@ -1705,10 +1831,8 @@
       const lo = settings.lyricsOffsetMs ?? DEFAULTS.lyricsOffsetMs ?? 0;
       document.getElementById('lyricsOffsetMs').value = lo;
       document.getElementById('searchDebugCb').checked = !!settings.searchDebug;
-      document.getElementById('deepSearchCb').checked = !!settings.deepSearch;
       document.getElementById('randomLiveStartCb').checked = !!settings.randomLiveStart;
-      document.getElementById('only4kCb').checked = !!settings.only4k;
-      document.getElementById('showSocialPostsCb').checked = !!settings.showSocialPosts;
+      document.getElementById('autoStartListeningCb').checked = !!settings.autoStartListening;
       stgFallbackPlaylistSource = settings.fallbackPlaylistSource || 'djlive';
       document.querySelectorAll('[data-fallback-source]').forEach(b => b.classList.toggle('active', b.dataset.fallbackSource === stgFallbackPlaylistSource));
       const fpWrap = document.getElementById('fallbackPlaylistCustomWrap');
@@ -1716,14 +1840,16 @@
       const fpEl = document.getElementById('fallbackPlaylistUrl');
       if (fpEl) fpEl.value = settings.fallbackPlaylistUrl || '';
       document.getElementById('fallbackPlaylistShuffleCb').checked = !!settings.fallbackPlaylistShuffle;
-      stgProxyMode = settings.proxyMode || 'cors';
-      document.querySelectorAll('[data-proxy-mode]').forEach(b => b.classList.toggle('active', b.dataset.proxyMode === stgProxyMode));
       stgTierOrder = [...(settings.tierOrder || [0, 1, 2, 3])];
       stgTierEnabled = [...(settings.tierEnabled || [true, true])];
       renderTierOrderList();
       bgBtns.forEach(b => {
         b.classList.toggle('active', b.dataset.bg === stgBgMode);
       });
+      const fallbackGroup = document.getElementById('fallbackPlaylistGroup');
+      if (fallbackGroup) fallbackGroup.style.display = stgBgMode === 'youtube' ? '' : 'none';
+      const videoTiersGroup = document.getElementById('videoTiersGroup');
+      if (videoTiersGroup) videoTiersGroup.style.display = stgBgMode === 'youtube' ? '' : 'none';
       musicSourceBtns.forEach(b => {
         b.classList.toggle('active', b.dataset.musicSource === stgMusicSource);
       });
@@ -1731,9 +1857,8 @@
         b.classList.toggle('active', b.dataset.ambient === stgAmbientDefault);
       });
       fieldsSpotify.classList.toggle('visible', stgMusicSource === 'spotify');
-      updateSpotifyButtons(!!getSpotifyAccessToken());
-      const token = getSpotifyAccessToken();
-      if (token) fetchSpotifyProfile(token).then(p => { if (p) updateSpotifyProfileUI(p); });
+      updateSpotifyButtons(false);
+      validateSpotifyConnection();
       stgStatus.textContent = '';
       stgStatus.className = 'stg-status';
       settingsOverlay.classList.add('visible');
@@ -1744,6 +1869,10 @@
       btn.addEventListener('click', () => {
         stgBgMode = btn.dataset.bg;
         bgBtns.forEach(b => b.classList.toggle('active', b === btn));
+        const fallbackGroup = document.getElementById('fallbackPlaylistGroup');
+        if (fallbackGroup) fallbackGroup.style.display = stgBgMode === 'youtube' ? '' : 'none';
+        const videoTiersGroup = document.getElementById('videoTiersGroup');
+        if (videoTiersGroup) videoTiersGroup.style.display = stgBgMode === 'youtube' ? '' : 'none';
       });
     });
 
@@ -1752,6 +1881,7 @@
         stgMusicSource = btn.dataset.musicSource;
         musicSourceBtns.forEach(b => b.classList.toggle('active', b === btn));
         fieldsSpotify.classList.toggle('visible', stgMusicSource === 'spotify');
+        if (stgMusicSource === 'spotify') validateSpotifyConnection();
       });
     });
 
@@ -1769,14 +1899,6 @@
         fallbackSourceBtns.forEach(b => b.classList.toggle('active', b === btn));
         const fpWrap = document.getElementById('fallbackPlaylistCustomWrap');
         if (fpWrap) fpWrap.style.display = stgFallbackPlaylistSource === 'custom' ? 'block' : 'none';
-      });
-    });
-
-    const proxyModeBtns = settingsOverlay.querySelectorAll('[data-proxy-mode]');
-    proxyModeBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        stgProxyMode = btn.dataset.proxyMode || 'cors';
-        proxyModeBtns.forEach(b => b.classList.toggle('active', b === btn));
       });
     });
 
@@ -1820,11 +1942,13 @@
         img.style.display = url ? 'block' : 'none';
         img.onerror = () => { img.style.display = 'none'; };
         name.textContent = profile.display_name || 'Signed in';
+        updateSpotifyButtons(true);
       } else {
         row.style.display = 'none';
         img.src = '';
         img.onerror = null;
         name.textContent = '';
+        updateSpotifyButtons(false);
       }
     }
 
@@ -1835,6 +1959,37 @@
       if (signIn) signIn.disabled = loggedIn;
       if (signOut) signOut.style.opacity = loggedIn ? '1' : '0.6';
       if (signOut) signOut.disabled = !loggedIn;
+    }
+
+    async function validateSpotifyConnection() {
+      try {
+        let token = getSpotifyAccessToken();
+        if (!token) {
+          updateSpotifyProfileUI(null);
+          updateSpotifyButtons(false);
+          return;
+        }
+        let profile = await fetchSpotifyProfile(token);
+        if (!profile) {
+          const d = JSON.parse(localStorage.getItem(SPOTIFY_STORAGE_KEY) || '{}');
+          if (d?.refresh_token) {
+            token = await refreshSpotifyToken();
+            if (token) profile = await fetchSpotifyProfile(token);
+          }
+        }
+        if (!profile) {
+          localStorage.removeItem(SPOTIFY_STORAGE_KEY);
+          sessionStorage.removeItem('spotify_code_verifier');
+          updateSpotifyProfileUI(null);
+          updateSpotifyButtons(false);
+          return;
+        }
+        updateSpotifyProfileUI(profile);
+        updateSpotifyButtons(true);
+      } catch (_) {
+        updateSpotifyProfileUI(null);
+        updateSpotifyButtons(false);
+      }
     }
 
     function generateRandomString(len) {
@@ -1905,7 +2060,8 @@
           headers: { Authorization: 'Bearer ' + token }
         });
         if (!res.ok) return null;
-        return await res.json();
+        const data = await res.json();
+        return (data && data.id) ? data : null;
       } catch (_) { return null; }
     }
 
@@ -1989,6 +2145,18 @@
       return null;
     }
 
+    function onSpotifyDisconnected() {
+      if (settings.musicSource !== 'spotify') return;
+      localStorage.removeItem(SPOTIFY_STORAGE_KEY);
+      sessionStorage.removeItem('spotify_code_verifier');
+      stopSpotifyPolling();
+      updateSpotifyProfileUI(null);
+      updateSpotifyButtons(false);
+      if (curKey) { hideNowPlaying(); curKey = null; curResult = null; }
+      applyMusicSourceMode();
+      phase('Spotify disconnected', 'Sign in again in Settings when ready.');
+    }
+
     function startSpotifyPolling() {
       if (spotifyPollInterval) clearInterval(spotifyPollInterval);
       spotifyPollInterval = null;
@@ -1997,14 +2165,16 @@
       spotifyPollInterval = setInterval(async () => {
         try {
           let token = getSpotifyAccessToken();
-          if (!token) return;
+          if (!token) {
+            onSpotifyDisconnected();
+            return;
+          }
           const d = JSON.parse(localStorage.getItem(SPOTIFY_STORAGE_KEY));
           if (d?.expires_at && Date.now() > d.expires_at - 60000) {
             token = await refreshSpotifyToken();
           }
           if (!token) {
-            if (lastId && curKey) { hideNowPlaying(); curKey = null; curResult = null; }
-            lastId = null;
+            onSpotifyDisconnected();
             return;
           }
           const playback = await fetchSpotifyCurrentlyPlaying(token);
@@ -2022,16 +2192,27 @@
             else if (is_playing && isPaused) resumeFromPause();
           }
           if (id !== lastId) { lastId = id; onSpotifyNowPlaying(item, prog); }
-        } catch (_) {}
+        } catch (_) {
+          onSpotifyDisconnected();
+        }
       }, 2500);
+      updateSpotifyCardUI();
     }
 
     function stopSpotifyPolling() {
       if (spotifyPollInterval) { clearInterval(spotifyPollInterval); spotifyPollInterval = null; }
+      if (settings.musicSource === 'spotify') updateSpotifyCardUI();
     }
+
+    document.getElementById('spotifyCardSignIn')?.addEventListener('click', () => {
+      document.getElementById('spotifySignIn')?.click();
+    });
 
     document.getElementById('spotifySignIn')?.addEventListener('click', async () => {
       const stgStatus = document.getElementById('stgStatus');
+      const signInCard = document.getElementById('spotifyCardSignIn');
+      const signInStg = document.getElementById('spotifySignIn');
+      [signInCard, signInStg].forEach(b => { if (b) { b.classList.add('loading'); b.disabled = true; } });
       const clientId = (settings.spotifyClientId || DEFAULT_SPOTIFY_CLIENT_ID).trim();
       try {
         const verifier = generateRandomString(64);
@@ -2051,6 +2232,7 @@
         window.location.href = authUrl;
       } catch (e) {
         if (stgStatus) { stgStatus.textContent = e?.message || 'Failed'; stgStatus.className = 'stg-status err'; }
+        [signInCard, signInStg].forEach(b => { if (b) { b.classList.remove('loading'); b.disabled = false; } });
       }
     });
 
@@ -2114,11 +2296,13 @@
           settings.musicSource = 'spotify';
           saveSettings(settings);
           const token = stored.access_token;
-          updateSpotifyButtons(true);
-          fetchSpotifyProfile(token).then(p => { if (p) updateSpotifyProfileUI(p); });
+          fetchSpotifyProfile(token).then(p => {
+            if (p) { updateSpotifyProfileUI(p); updateSpotifyButtons(true); }
+            else { updateSpotifyProfileUI(null); updateSpotifyButtons(false); }
+          });
           musicSourceBtns.forEach(b => { b.classList.toggle('active', b.dataset.musicSource === 'spotify'); });
           applyMusicSourceMode();
-          startSpotifyPolling();
+          if (settings.autoStartListening) startSpotifyPolling();
         } else if (data.error) {
           showOAuthError('Token exchange: ' + (data.error_description || data.error));
         }
@@ -2128,20 +2312,45 @@
       history.replaceState('', '', window.location.pathname || '/');
     })();
 
-    function applyMusicSourceMode() {
-      document.body.classList.toggle('spotify-mode', settings.musicSource === 'spotify');
-      const spotifyMsg = document.getElementById('spotifyStatusMsg');
-      if (spotifyMsg) {
-        if (settings.musicSource !== 'spotify') {
-          spotifyMsg.textContent = 'Use Listen or switch to Spotify in Settings.';
-        } else if (!getSpotifyAccessToken()) {
-          spotifyMsg.textContent = 'Sign in via Settings. Now playing syncs from any device.';
-        } else {
-          spotifyMsg.textContent = 'Now playing syncs from your Spotify.';
-          spotifyMsg.classList.add('active');
-        }
+    function updateSpotifyCardUI() {
+      const spotifyBtn = document.getElementById('spotifyBtn');
+      const spotifyStatusText = document.getElementById('spotifyStatusText');
+      const spotifyCardSignIn = document.getElementById('spotifyCardSignIn');
+      if (!spotifyBtn || settings.musicSource !== 'spotify') return;
+      const hasToken = !!getSpotifyAccessToken();
+      const isPolling = !!spotifyPollInterval;
+      if (!hasToken) {
+        spotifyBtn.style.display = 'none';
+        if (spotifyStatusText) spotifyStatusText.style.display = 'none';
+        if (spotifyCardSignIn) { spotifyCardSignIn.style.display = 'inline-flex'; }
+        return;
+      }
+      spotifyBtn.style.display = 'flex';
+      if (spotifyStatusText) spotifyStatusText.style.display = 'block';
+      if (spotifyCardSignIn) spotifyCardSignIn.style.display = 'none';
+      spotifyBtn.classList.toggle('syncing', isPolling);
+      if (spotifyStatusText) {
+        spotifyStatusText.textContent = isPolling ? 'Syncing from your Spotify' : 'Click to start syncing';
+        spotifyStatusText.classList.toggle('syncing', isPolling);
       }
     }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && settings.musicSource === 'spotify' && getSpotifyAccessToken()) {
+        validateSpotifyConnection();
+      }
+    });
+
+    function applyMusicSourceMode() {
+      document.body.classList.toggle('spotify-mode', settings.musicSource === 'spotify');
+      updateSpotifyCardUI();
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && settings.musicSource === 'spotify' && getSpotifyAccessToken()) {
+        validateSpotifyConnection();
+      }
+    });
 
     document.getElementById('stgSave').addEventListener('click', () => {
       settings.provider = 'acrcloud';
@@ -2155,10 +2364,8 @@
       const loVal = parseInt(document.getElementById('lyricsOffsetMs').value, 10);
       settings.lyricsOffsetMs = Number.isFinite(loVal) ? Math.max(-3000, Math.min(3000, loVal)) : (DEFAULTS.lyricsOffsetMs ?? 0);
       settings.searchDebug = !!document.getElementById('searchDebugCb').checked;
-      settings.deepSearch = !!document.getElementById('deepSearchCb').checked;
       settings.randomLiveStart = !!document.getElementById('randomLiveStartCb').checked;
-      settings.only4k = !!document.getElementById('only4kCb').checked;
-      settings.showSocialPosts = !!document.getElementById('showSocialPostsCb').checked;
+      settings.autoStartListening = !!document.getElementById('autoStartListeningCb')?.checked;
       settings.ambientDefault = stgAmbientDefault || 'youtube';
       const customUrl = (document.getElementById('fallbackPlaylistUrl')?.value || '').trim();
       const customId = customUrl.match(/[?&]list=([a-zA-Z0-9_-]+)/)?.[1];
@@ -2171,18 +2378,17 @@
       settings.fallbackPlaylistSource = stgFallbackPlaylistSource || 'djlive';
       settings.fallbackPlaylistUrl = (settings.fallbackPlaylistSource === 'custom') ? customUrl : '';
       settings.fallbackPlaylistShuffle = !!document.getElementById('fallbackPlaylistShuffleCb')?.checked;
-      settings.proxyMode = stgProxyMode || 'cors';
       const tierList = document.getElementById('stgTierOrderList');
       if (tierList) {
         const rows = tierList.querySelectorAll('.stg-tier-row');
         settings.tierOrder = Array.from(rows).map(r => parseInt(r.dataset.tier, 10));
-        settings.tierEnabled = [true, true, true, false];
+        settings.tierEnabled = [true, true, true, true];
         rows.forEach(r => { settings.tierEnabled[parseInt(r.dataset.tier, 10)] = !!r.querySelector('.stg-tier-cb')?.checked; });
       }
 
       if (stgMusicSource === 'spotify') {
         applyMusicSourceMode();
-        if (getSpotifyAccessToken()) startSpotifyPolling();
+        if (getSpotifyAccessToken() && settings.autoStartListening) startSpotifyPolling();
         else stopSpotifyPolling();
       } else {
         stopSpotifyPolling();
@@ -2713,12 +2919,14 @@
     ];
 
     const lastSongSection = document.getElementById('lastSongSection');
+    const lastSongSectionDrawer = document.getElementById('lastSongSectionDrawer');
 
     function updateLastSongDisplay() {
       const item = historyItems[0];
       if (!item?.title || !item?.artist) {
         lastSongSection.classList.remove('visible');
         lastSongSection.innerHTML = '';
+        if (lastSongSectionDrawer) { lastSongSectionDrawer.classList.remove('visible'); lastSongSectionDrawer.innerHTML = ''; }
         return;
       }
       const art = item.apple_music?.artwork?.url?.replace('{w}', 600).replace('{h}', 600)
@@ -2727,15 +2935,15 @@
       const spotifyUrl = item.spotify?.external_urls?.spotify;
       const tidbit = LAST_SONG_TIDBITS[Math.floor(Math.random() * LAST_SONG_TIDBITS.length)];
       const imgHtml = art ? '<img class="album-art" src="'+art+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">' : '';
-      const artHtml = art && spotifyUrl
-        ? '<a href="'+spotifyUrl+'" target="_blank" rel="noopener" class="album-art-link" title="Open in Spotify">'+imgHtml+'<span class="album-art-spotify-badge">'+SPOTIFY_ICON+'</span></a>'
+      const artHtml = spotifyUrl
+        ? '<div class="last-song-art-wrap"><a href="'+spotifyUrl+'" target="_blank" rel="noopener" class="album-art-link" title="Open in Spotify">'+(imgHtml || '<div class="album-art"></div>')+'</a><a href="'+spotifyUrl+'" target="_blank" rel="noopener" class="last-song-spotify-badge" title="Open in Spotify">'+SPOTIFY_ICON+'</a></div>'
         : (art ? imgHtml : '<div class="album-art"></div>');
-      const linksHtml = getLinksIcons(item, { excludeSpotify: !!spotifyUrl });
       const thumbUrl = item.video?.thumb || (item.video?.platform === 'youtube' ? 'https://img.youtube.com/vi/'+item.video.id+'/hqdefault.jpg' : item.video?.platform === 'dailymotion' ? 'https://www.dailymotion.com/thumbnail/video/'+item.video.id : null);
       const ch = item.video?.channel || item.video?.['owner.screenname'] || '';
       const videoMetaHtml = item.video && (item.video.title || ch) ? '<div class="last-song-video-meta">'+(item.video.title ? '<span class="last-song-video-title">'+escapeHtml(item.video.title)+'</span>' : '')+(ch ? '<span class="last-song-video-channel">'+escapeHtml(ch)+'</span>' : '')+'</div>' : '';
       const videoHtml = item.video ? '<a href="'+item.video.url+'" target="_blank" rel="noopener" class="last-song-video-thumb" title="'+escapeHtml(item.video.title)+'">'+(thumbUrl ? '<img src="'+thumbUrl+'" alt="" onerror="this.parentElement.classList.add(\'no-thumb\')">' : '')+'<span class="video-play-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></a>'+videoMetaHtml : '';
-      lastSongSection.innerHTML =
+      const linksHtml = getLinksIcons(item, { excludeSpotify: !!spotifyUrl });
+      const lastSongHtml =
         '<div class="last-song-label">Last song you listened to</div>' +
         '<div class="last-song-card">' +
           '<div class="last-song-main">' +
@@ -2752,7 +2960,12 @@
           '</div>' +
           '<div class="last-song-tidbit">' + tidbit + '</div>' +
         '</div>';
+      lastSongSection.innerHTML = lastSongHtml;
       lastSongSection.classList.add('visible');
+      if (lastSongSectionDrawer) {
+        lastSongSectionDrawer.innerHTML = lastSongHtml;
+        lastSongSectionDrawer.classList.add('visible');
+      }
     }
 
     let currentSongVideo = null;
@@ -3073,7 +3286,9 @@
       if (!searchDebugBox || !settings.searchDebug) return;
       /* No Query logs — only YouTube search logs (searching-yt, tier status, channel, etc.) */
       if (opts.type === 'query') return;
-      /* Show Channel header for channel-related logs (like tier headers) */
+      /* Skip redundant "---- Channel ----" section; already logged under "---- YouTube Channel ----" */
+      if (!opts.type && opts.tierLabel === 'Channel' && opts.status === 'none found') return;
+      /* Show YouTube Channel header for channel-related logs (Visualizer, Live, Music Video only) */
       const channelTypes = ['channel', 'channel-skipped', 'channel-videos', 'channel-loading', 'channel-videos-fetch'];
       if (channelTypes.includes(opts.type) && !_channelHeaderShown) {
         const sep = document.createElement('div');
@@ -3081,7 +3296,7 @@
         searchDebugBox.appendChild(sep);
         const header = document.createElement('div');
         header.className = 'db-tier-header';
-        header.textContent = '---- Channel ----';
+        header.textContent = '---- YouTube Channel ----';
         searchDebugBox.appendChild(header);
         const sep2 = document.createElement('div');
         sep2.className = 'db-separator';
@@ -3115,7 +3330,7 @@
         div.innerHTML = '<span class="db-status">Channel videos skipped</span> <span class="db-query">' + esc(opts.reason || 'no valid @handle or channelId') + '</span>';
       } else if (opts.type === 'channel-loading') {
         const handleText = opts.handle ? '@' + esc(opts.handle) : (opts.channelId ? esc(opts.channelId) : 'channel');
-        div.innerHTML = '<span class="db-status">Loading channel videos</span> <span class="db-query">' + handleText + '</span>';
+        div.innerHTML = '<span class="db-status">Loading channel videos (official channel tiers only)</span> <span class="db-query">' + handleText + '</span>';
       } else if (opts.type === 'channel-videos-fetch') {
         if (opts.status === 'error') {
           div.innerHTML = '<span class="db-fail">fetch failed</span>' + (opts.error ? ' <span class="db-status">(' + esc(opts.error) + ')</span>' : '');
@@ -3138,11 +3353,11 @@
         }
         div.innerHTML = text;
       } else if (opts.type === 'channel-videos') {
-        /* Only log "No videos on channel match" — never "X on channel match" under YouTube: found */
+        /* Only log "No videos on official channel match" — never "X on channel match" under YouTube: found */
         const matched = opts.matched || [];
         const errNote = opts.error ? ' <span class="db-fail">(' + esc(opts.error) + ')</span>' : '';
         if (matched.length === 0) {
-          div.innerHTML = '<span class="db-status">No videos on channel match title</span>' + errNote;
+          div.innerHTML = '<span class="db-status">No videos on official channel match title</span>' + errNote;
           searchDebugBox.appendChild(div);
         }
         searchDebugBox.scrollTop = searchDebugBox.scrollHeight;
@@ -3781,7 +3996,7 @@
       }, tierLabel);
     }
 
-    /* ── YouTube search: CORS first on static hosts (GitHub Pages etc.); server proxy when Node running ── */
+    /* ── YouTube search: CORS proxy only ── */
     const YT_INITIAL_MARKER = 'var ytInitialData = ';
     /* allorigins.win often blocks 127.0.0.1 (520/CORS) — try others first */
     const CORS_PROXIES = [
@@ -3794,37 +4009,28 @@
     ];
     let ytSearchOk = null;
 
-    /** Fetch YouTube HTML — cors OR node only (no fallback) */
+    /** Fetch YouTube HTML via CORS proxies */
     async function fetchYtHtml(url, opts) {
       const o = { ...opts, signal: opts?.signal || AbortSignal.timeout(18000) };
-      const mode = settings.proxyMode || 'cors';
       const isValidYtHtml = (text) => text && typeof text === 'string' && text.includes(YT_INITIAL_MARKER);
-      const tryServer = () => {
-        const proxyPath = '/api/proxy?url=' + encodeURIComponent(url);
-        return fetch(proxyPath, o).then(r => r.ok ? r.text() : null);
-      };
-      const tryCors = async () => {
-        for (let i = 0; i < CORS_PROXIES.length; i++) {
-          const toProxy = CORS_PROXIES[i];
-          const isAllOriginsGet = toProxy(url).includes('allorigins.win/get');
-          try {
-            const res = await fetch(toProxy(url), o);
-            if (!res.ok) continue;
-            const text = await res.text();
-            let html = text;
-            if (isAllOriginsGet) {
-              try {
-                const j = JSON.parse(text);
-                html = (j && j.contents) || '';
-              } catch (_) { html = ''; }
-            }
-            if (isValidYtHtml(html)) return html;
-          } catch (_) {}
-        }
-        return null;
-      };
-      if (mode === 'node') return await tryServer();
-      return await tryCors();
+      for (let i = 0; i < CORS_PROXIES.length; i++) {
+        const toProxy = CORS_PROXIES[i];
+        const isAllOriginsGet = toProxy(url).includes('allorigins.win/get');
+        try {
+          const res = await fetch(toProxy(url), o);
+          if (!res.ok) continue;
+          const text = await res.text();
+          let html = text;
+          if (isAllOriginsGet) {
+            try {
+              const j = JSON.parse(text);
+              html = (j && j.contents) || '';
+            } catch (_) { html = ''; }
+          }
+          if (isValidYtHtml(html)) return html;
+        } catch (_) {}
+      }
+      return null;
     }
 
     function parseYtInitialData(html) {
@@ -4160,16 +4366,15 @@
         _lastDebugTier = null;
         _channelHeaderShown = false;
         if (settings.searchDebug) {
-          const mode = settings.proxyMode || 'cors';
           const head = document.createElement('div');
           head.className = 'db-line';
-          head.innerHTML = '<strong>Debugging</strong> YouTube proxy: ' + mode;
+          head.innerHTML = '<strong>Debugging</strong> YouTube (CORS proxy)';
           searchDebugBox.appendChild(head);
         }
       }
 
       const tierOrder = settings.tierOrder && settings.tierOrder.length ? settings.tierOrder : [0, 1, 2, 3];
-      const tierEnabled = settings.tierEnabled && settings.tierEnabled.length >= 4 ? settings.tierEnabled : [true, true, true, false];
+      const tierEnabled = settings.tierEnabled && settings.tierEnabled.length >= 4 ? settings.tierEnabled : [true, true, true, true];
       /* Only look up official channel if a channel tier (Visualizer, Live, Music Video) is enabled */
       const hasChannelTiersEnabled = tierEnabled[0] || tierEnabled[1] || tierEnabled[2];
       const oc = hasChannelTiersEnabled ? await findOfficialChannel(mainArtist, key, title) : { found: false, name: '', handle: '', channelId: '', channelsSeen: [] };
@@ -4177,9 +4382,9 @@
       if (settings.searchDebug && hasChannelTiersEnabled) {
         appendDebugLog({ type: 'channel', found: !!hasValidChannel || !!(oc?.name || oc?.handle || oc?.channelId), name: oc?.name || '', handle: oc?.handle || '', channelId: oc?.channelId || '', next: !hasValidChannel && tierEnabled[3] ? 'skipping to Live (fan)' : '' });
       }
-      /* Load channel videos once in Channel section when deep search enabled */
+      /* Load channel videos once in Channel section (Visualizer, Live, Music Video use channel only) */
       let cachedChannelVideos = null;
-      if (hasValidChannel && settings.deepSearch && hasChannelTiersEnabled) {
+      if (hasValidChannel && hasChannelTiersEnabled) {
         if (searchDebugBox && settings.searchDebug) {
           appendDebugLog({ type: 'channel-loading', handle: oc?.handle || '', channelId: oc?.channelId || '' });
         }
@@ -4222,22 +4427,14 @@
           ? { useChannelSearch: true, queries: liveQueries, filterByChannel: true, filterLive: true, maxRank: 2, tier: 1, alwaysMergeQueries: true, retryQueries: [mainArtist + ' concert', mainArtist + ' full set'] }
           : { queries: liveQueries, maxRank: 2, tier: 1, alwaysMergeQueries: true, retryQueries: [mainArtist + ' concert', mainArtist + ' full set'] };
         const liveFanQueries = [mainArtist + ' ' + title + ' live', mainArtist + ' live', mainArtist + ' ' + title + ' concert', mainArtist + ' concert', mainArtist + ' live set'];
-        const liveFanTierConfig = { queries: liveFanQueries, filterByChannel: false, filterLive: true, allowUnofficial: true, filterByTitle: false, maxRank: 3, tier: 3, retryQueries: [mainArtist + ' full set', mainArtist + ' ' + title] };
+        const liveFanTierConfig = { queries: liveFanQueries, filterByChannel: false, filterLive: true, allowUnofficial: true, filterByTitle: false, maxRank: 3, tier: 3, retryQueries: [mainArtist + ' live', mainArtist + ' full set', mainArtist + ' ' + title] };
         const configs = [
           songTierConfig,
           liveTierConfig,
           musicVideoTierConfig,
           liveFanTierConfig
         ];
-        let cfg = configs[tierIdx] ? { ...configs[tierIdx] } : null;
-        if (cfg && settings.only4k) {
-          const suffix = ' 4k';
-          if (cfg.queries) cfg = { ...cfg, queries: cfg.queries.map(q => q + suffix) };
-          if (cfg.q) cfg = { ...cfg, q: cfg.q + suffix };
-          if (cfg.retryQueries) cfg = { ...cfg, retryQueries: cfg.retryQueries.map(q => q + suffix) };
-          if (cfg.fallbackQ) cfg = { ...cfg, fallbackQ: cfg.fallbackQ + suffix };
-        }
-        return cfg;
+        return configs[tierIdx] ? { ...configs[tierIdx] } : null;
       }
       /* No official channel: skip Visualizer/Live/Music Video (they need channel); only try Live (fan) if enabled, else fallback */
       const orderedTiers = hasValidChannel
@@ -4266,9 +4463,9 @@
           }
           let listRaw;
           const hasValidChannelForTier = oc?.channelId || (oc?.handle && !/\s/.test((oc.handle || '')));
-          const useChannelOnly = settings.deepSearch && hasValidChannelForTier && s.filterByChannel && (s.tier === 0 || s.tier === 1 || s.tier === 2);
+          const useChannelOnly = hasValidChannelForTier && s.filterByChannel && (s.tier === 0 || s.tier === 1 || s.tier === 2);
           if (useChannelOnly) {
-            showSearchStatus(tierLabel, 'yt', 'filtering...', 'channel videos');
+            showSearchStatus(tierLabel, 'yt', 'filtering...', 'official channel videos');
             listRaw = (cachedChannelVideos || []).slice();
           } else {
             showSearchStatus(tierLabel, 'yt', 'searching...', qDisplay);
@@ -4278,16 +4475,16 @@
             const hasVideoInTitle = v => /\bvideo\b/.test((v.title || '').toLowerCase());
             const minDurationSec = _searchDurationMs ? Math.floor(_searchDurationMs / 1000) : 0;
             const videoLongerThanSong = v => !minDurationSec || !v.duration || v.duration >= minDurationSec;
-            const has4kInTitle = v => /4k|2160p|UHD|ultra\s*hd/i.test(v.title || '');
+            const hasAtOrHandleInTitle = v => /@|\bat\b/i.test(v.title || '');
             const filterList = (raw) => {
               let L = raw.filter(channelFilter);
               if (s.filterLive) L = L.filter(hasLiveInTitle);
               if (s.filterByChannel && s.tier === 0) L = L.filter(v => titleContains(v, title));
               if (s.filterByTitle && s.tier === 3) L = L.filter(v => titleContains(v, title));
               if (s.tier === 3) L = L.filter(v => titleContainsFullArtist(v, _searchArtist));
+              if (s.tier === 3) L = L.filter(hasAtOrHandleInTitle);
               if (s.tier === 2) L = L.filter(v => hasVideoInTitle(v) && titleContains(v, title));
               if ((s.tier === 1 || s.tier === 3) && minDurationSec) L = L.filter(videoLongerThanSong);
-              if (settings.only4k) L = L.filter(has4kInTitle);
               return L;
             };
             const firstQ = s.queries[0];
@@ -4308,18 +4505,20 @@
           if (videoForKey !== key) return;
           const hasLiveInTitle = v => /\blive\b|\bconcert\b|\bperformanc|\bfestival\b|\bunplugged\b/.test((v.title || '').toLowerCase());
           const hasVideoInTitle = v => /\bvideo\b/.test((v.title || '').toLowerCase());
-          const has4kInTitle = v => /4k|2160p|UHD|ultra\s*hd/i.test(v.title || '');
           const channelFilter = s.allowUnofficial ? (v) => true : (s.filterByChannel && oc ? (v) => isFromOfficialChannel(v, oc) : (v) => isOfficialChannel(v));
+          /* Channel page videos lack channelId/handle, so skip channel filter when listRaw is from cached channel */
+          const fromChannelById = new Set((cachedChannelVideos || []).map(v => v.id));
+          const mergedChannelFilter = oc ? (v) => fromChannelById.has(v.id) || isFromOfficialChannel(v, oc) : channelFilter;
           const minDurationSec = _searchDurationMs ? Math.floor(_searchDurationMs / 1000) : 0;
           const videoLongerThanSong = v => !minDurationSec || !v.duration || v.duration >= minDurationSec;
-          let list = (listRaw || []).filter(channelFilter);
+          let list = useChannelOnly ? (listRaw || []) : (listRaw || []).filter(channelFilter);
           if (s.filterLive) list = list.filter(hasLiveInTitle);
           if (s.filterByChannel && s.tier === 0) list = list.filter(v => titleContains(v, title));
           if (s.filterByTitle && s.tier === 3) list = list.filter(v => titleContains(v, title));
           if (s.tier === 3) list = list.filter(v => titleContainsFullArtist(v, _searchArtist));
+          if (s.tier === 3) list = list.filter(v => /@|\bat\b/i.test(v.title || ''));
           if (s.tier === 2) list = list.filter(v => hasVideoInTitle(v) && titleContains(v, title));
           if ((s.tier === 1 || s.tier === 3) && minDurationSec) list = list.filter(videoLongerThanSong);
-          if (settings.only4k) list = list.filter(has4kInTitle);
           if ((s.filterByChannel || s.allowUnofficial) && s.tier !== 3 && (!list || list.length === 0) && searchDebugBox && settings.searchDebug) {
             appendDebugLog({ type: 'channel-videos', videos: listRaw || [], matched: list });
           }
@@ -4331,8 +4530,7 @@
           if (!useChannelOnly && (!list || list.length === 0) && title && title.length > 2) {
             const qTitle = '"' + title.replace(/"/g, '') + '"';
             const channelPart = (oc?.name && oc.name.trim()) ? oc.name.trim() : ((oc?.handle || '').trim() ? '@' + (oc.handle || '').trim() : mainArtist);
-            let quotedQuery = (s.tier === 1 || s.tier === 3) ? channelPart + ' ' + qTitle + ' live' : channelPart + ' ' + qTitle;
-            if (settings.only4k) quotedQuery += ' 4k';
+            const quotedQuery = (s.tier === 1 || s.tier === 3) ? channelPart + ' ' + qTitle + ' live' : channelPart + ' ' + qTitle;
             showSearchStatus(tierLabel, 'yt', 'trying quoted...', quotedQuery);
             const quotedRaw = await searchFn(quotedQuery, key);
             if (videoForKey !== key) return;
@@ -4342,16 +4540,16 @@
             if (s.filterByChannel && s.tier === 0) list = list.filter(v => titleContains(v, title));
             if (s.filterByTitle && s.tier === 3) list = list.filter(v => titleContains(v, title));
             if (s.tier === 3) list = list.filter(v => titleContainsFullArtist(v, _searchArtist));
+            if (s.tier === 3) list = list.filter(v => /@|\bat\b/i.test(v.title || ''));
             if (s.tier === 2) list = list.filter(v => hasVideoInTitle(v) && titleContains(v, title));
             if ((s.tier === 1 || s.tier === 3) && minDurationSec) list = list.filter(videoLongerThanSong);
-            if (settings.only4k) list = list.filter(has4kInTitle);
             if ((!list || list.length === 0) && s.tier !== 3 && searchDebugBox && settings.searchDebug) {
               appendDebugLog({ type: 'channel-videos', videos: listRaw || [], matched: list });
             }
           }
           /* If still no hits, use cached channel videos (skip for useChannelOnly — already used cache) */
           const hasValidChannel = oc?.channelId || (oc?.handle && !/\s/.test((oc.handle || '')));
-          if (!useChannelOnly && (!list || list.length === 0) && hasValidChannel && s.filterByChannel && settings.deepSearch) {
+          if (!useChannelOnly && (!list || list.length === 0) && hasValidChannel && s.filterByChannel) {
             const channelVids = cachedChannelVideos || [];
             if (videoForKey !== key) return;
               if (channelVids?.length) {
@@ -4362,7 +4560,6 @@
               if (s.tier === 0) fromChannel = fromChannel.filter(v => titleContains(v, title));
               if (s.tier === 2) fromChannel = fromChannel.filter(v => /\bvideo\b/.test((v.title || '').toLowerCase()) && titleContains(v, title));
               if ((s.tier === 1 || s.tier === 3) && minDurationSec) fromChannel = fromChannel.filter(videoLongerThanSong);
-              if (settings.only4k) fromChannel = fromChannel.filter(has4kInTitle);
               list = fromChannel;
               if ((!list || list.length === 0) && searchDebugBox && settings.searchDebug) {
                 appendDebugLog({ type: 'channel-videos', videos: channelVids, matched: list, source: 'channel-page' });
@@ -4383,6 +4580,7 @@
               appendDebugLog({ type: 'retry-queries', queries: s.retryQueries, matched: list });
             }
           }
+          if (videoForKey !== key) return;
           if (list && list.length) {
             const pick = bestFromList(list, s.maxRank);
             const toTry = pick || list[0];
@@ -4396,7 +4594,7 @@
                   if (videoForKey !== key) return;
                   currentSongVideo = null;
                   const rq = s.retryQueries;
-                  if (rq?.length && s.tier !== 3 && !useChannelOnly) {
+                  if (rq?.length && !useChannelOnly) {
                     showSearchStatus(tierLabel, 'yt', 'retrying different query...', rq[0]);
                     const retryListRaw = dedupeById((await Promise.all(rq.map(q => ytSearch(q, key)))).map(r => r || []).flat());
                     const retryChannelFilter = s.allowUnofficial ? (v) => true : (s.filterByChannel && oc ? (v) => isFromOfficialChannel(v, oc) : (v) => isOfficialChannel(v));
@@ -4404,6 +4602,7 @@
                     if (s.filterLive) retryList = retryList.filter(v => /\blive\b|\bconcert\b|\bperformanc|\bfestival\b|\bunplugged\b/.test((v.title || '').toLowerCase()));
                     if (s.filterByTitle && s.tier === 3) retryList = retryList.filter(v => titleContains(v, title));
                     if (s.tier === 3) retryList = retryList.filter(v => titleContainsFullArtist(v, _searchArtist));
+                    if (s.tier === 3) retryList = retryList.filter(v => /@|\bat\b/i.test(v.title || ''));
                     if (s.tier === 2) retryList = retryList.filter(v => /\bvideo\b/.test((v.title || '').toLowerCase()) && titleContains(v, title));
                     if ((s.tier === 1 || s.tier === 3) && minDurationSec) retryList = retryList.filter(videoLongerThanSong);
                     const triedIds = new Set(candidates.map(v => v.id));
@@ -5032,34 +5231,9 @@
       if (isListening) stopListening(); else startListening();
     });
 
-    document.getElementById('demoBtn')?.addEventListener('click', () => {
-      try {
-        const demo = {
-          title: 'Strobe',
-          artist: 'Deadmau5',
-          album: 'For Lack of a Better Name',
-          spotify: { duration_ms: 632000, external_urls: { spotify: 'https://open.spotify.com/track/2QCE6gROKTK9C64A6DsLOP' } },
-          apple_music: { url: 'https://music.apple.com/us/album/strobe/338569591?i=338569595' }
-        };
-        const key = demo.artist + '::' + demo.title;
-        curKey = key;
-        curLabel = demo.title + ' — ' + demo.artist;
-        curTitle = demo.title;
-        curArtist = demo.artist;
-        curDurationMs = 632000;
-        curResult = demo;
-        curStartedAt = performance.now();
-        addHistory(demo, '', null);
-        showNowPlaying(demo, 'Demo');
-        fetchCoverArt(demo);
-        fetchLyrics(demo.title, demo.artist, demo.album, curDurationMs);
-        if (videoForKey !== key) searchAndPlayVideo(demo.title, demo.artist, 0, curDurationMs);
-        startProgress();
-        startLyrics();
-        console.log('[DJ Live] Demo started');
-      } catch (e) {
-        console.error('[DJ Live] Demo failed:', e);
-      }
+    document.getElementById('spotifyBtn')?.addEventListener('click', () => {
+      if (settings.musicSource !== 'spotify') return;
+      if (spotifyPollInterval) { stopSpotifyPolling(); } else { startSpotifyPolling(); }
     });
 
     function openDrawer() {
@@ -5077,7 +5251,8 @@
     drawerOverlay.addEventListener('click', closeDrawer);
 
     applyMusicSourceMode();
-    if (settings.musicSource === 'spotify' && getSpotifyAccessToken()) startSpotifyPolling();
+    if (settings.autoStartListening && settings.musicSource === 'spotify' && getSpotifyAccessToken()) startSpotifyPolling();
+    if (settings.autoStartListening && settings.musicSource === 'listen') startListening();
 
     loadHistory();
 
